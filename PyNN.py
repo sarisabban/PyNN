@@ -49,8 +49,57 @@ class PyNN():
 #		''' Set the loss and the optimiser '''
 #		self.loss = loss
 #		self.optimiser = optimiser
-#	def train(self, X, Y, epochs=1, verbose=0):
-#		''' Train the network, forward pass followed by backward pass '''
+	def train(self, X, Y, batch_size=None, epochs=1, verbose=0):
+		''' Train the network, forward pass followed by backward pass '''
+		for epoch in range(epochs):
+		# Mini-Baches
+		# steps in mini batches
+
+#			for layer in self.layers:
+#				layer.forward(X)
+			output = self.forward(X)
+
+			print(output)
+
+
+
+	def finalise(self):
+		self.input_layer = Layer_Input()
+		layer_count = len(self.layers)
+
+
+		
+		for i in range(layer_count):
+			# If it's the first layer,
+			# the previous layer object is the input layer
+			if i == 0:
+				self.layers[i].prev = self.input_layer
+				self.layers[i].next = self.layers[i+1]
+			# All layers except for the first and the last
+			elif i < layer_count - 1:
+				self.layers[i].prev = self.layers[i-1]
+				self.layers[i].next = self.layers[i+1]
+			# The last layer - the next object is the loss
+			else:
+				self.layers[i].prev = self.layers[i-1]
+#				self.layers[i].next = self.loss
+
+
+	def forward(self, X):
+		# Call forward method on the input layer
+		# this will set the output property that
+		# the first layer in "prev" object is expecting
+		self.input_layer.forward(X)
+		# Call forward method of every object in a chain
+		# Pass output of the previous object as a parameter
+		for layer in self.layers:
+			layer.forward(layer.prev.output)
+		# "layer" is now the last object from the list,
+		# return its output
+		return layer.output
+
+
+
 #	def show(self):
 #		''' Print out the structure of the network '''
 #	def verbosity(self):
@@ -79,17 +128,25 @@ class PyNN():
 
 
 
-
+class Layer_Input():
+	def forward(self, inputs):
+		self.output = inputs
 
 
 class Dense():
+	''' A dense layer '''
 	def __init__(self, inputs=1, outputs=1):
 		''' Initialise parameters '''
 		self.w, self.b, self.gamma, self.beta = Parameters(inputs, outputs)
 	def forward(self, x):
-		''' A dense layer '''
+		''' The forward pass '''
 		self.z = np.dot(x, self.w) + self.b
-#	def backward(self):
+#	def backward(self, y, DA_DZ, w):
+#		''' The backward pass '''
+#		dL_dw = np.dot(y.T, DA_Dz)
+#		dL_db = np.sum(DA_Dz, axis=0, keepdims=True)
+#		dL_dx = np.dot(DA_Dz, w.T)
+#		return(dL_dw, dL_db, dL_dx)
 
 class ReLU():
 	''' The ReLU activation function '''
@@ -97,11 +154,20 @@ class ReLU():
 		self.y = np.maximum(0, z)
 #	def backward(self):
 
+def d_ReLU(DL_DY, z):# The derivative of the ReLU activation function
+	DR_Dz = DL_DY.copy()
+	DR_Dz[z <= 0] = 0
+	return(DR_Dz)
+
 class Linear():
 	''' The Linear activation function '''
 	def forward(self, z):
 		self.y = z
 #	def backward(self):
+
+def d_Linear(DL_DY):# The derivative of the Linear activation function
+	DA_Dz = DL_DY.copy()
+	return(DA_Dz)
 
 class Softmax():
 	''' The Softmax activation function '''
@@ -110,11 +176,23 @@ class Softmax():
 		self.y = exp_values / np.sum(exp_values, axis=1, keepdims=True)
 #	def backward(self):
 
+def d_Softmax(DL_DY, y_pred):# Derivative of the Softmax activation function
+	DS_Dz = np.empty_like(DL_DY)
+	for i, (y, dy) in enumerate(zip(y_pred, DL_DY)):
+		y = y.reshape(-1, 1)
+		jacobian_matrix = np.diagflat(y) - np.dot(y, y.T)
+		DS_Dz[i] = np.dot(jacobian_matrix, dy)
+	return(DS_Dz)
+
 class Sigmoid():
 	''' The Sigmoid activation function '''
 	def forward(self, z):
 		self.y = 1 / (1 + np.exp(-z))
 #	def backward(self):
+
+def d_Sigmoid(DA_Dz, y_pred):# The derivative of the Sigmoid activation function
+	DS_Dz = DA_Dz * (1 - y_pred) * y_pred
+	return(DS_Dz)
 
 #class TanH():
 #	''' The TanH activation function '''
@@ -127,15 +205,51 @@ class Sigmoid():
 
 
 
+class BCE_Loss():
+	''' The Binary Cross-Entropy loss function '''
+	def forward(y_true, y_pred):
+		y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
+		loss = -(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+		return(loss)
+
+#def d_BCE_Loss(y_true,  y_pred):# Derivative of Binary Cross-Entropy loss
+#	y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
+#	DL_DY = (y_pred - y_true) / (y_pred * (1-y_pred)) / len(y_pred)
+#	return(DL_DY)
+
+
+
+
+#----- Import Data -----#
+def spiral_data(samples, classes):
+	X = np.zeros((samples*classes, 2))
+	Y = np.zeros(samples*classes, dtype='uint8')
+	for class_n in range(classes):
+		ix = range(samples*class_n, samples*(class_n+1))
+		r = np.linspace(0.0, 1, samples)
+		t = np.linspace(class_n*4, (class_n+1)*4, samples) + np.random.randn(samples)*0.2
+		X[ix] = np.c_[r*np.sin(t*2.5), r*np.cos(t*2.5)]
+		Y[ix] = class_n
+	return X, Y
+
+X, Y = spiral_data(samples=100, classes=2) # X = (200, 2)   y = (200,)
+
+
 
 model = PyNN()
-model.add(Dense(1, 64))
-model.add(ReLU())
-model.add(Dense(64, 64))
+model.add(Dense(2, 64))
 model.add(ReLU())
 model.add(Dense(64, 1))
 model.add(Linear())
-print(model.layers[0].w.shape)
+
+Y = Y.reshape(-1, 1) # y = (200, 1)
+
+model.finalise()
+
+
+model.train(X, Y)
+
+#print(model.layers[0].w.shape)
 
 
 
@@ -143,26 +257,10 @@ print(model.layers[0].w.shape)
 
 
 
-def d_Dense(y, DA_Dz, w):# The derivative of a single Dense layer
-	dL_dw = np.dot(y.T, DA_Dz)
-	dL_db = np.sum(DA_Dz, axis=0, keepdims=True)
-	dL_dx = np.dot(DA_Dz, w.T)
-	return(dL_dw, dL_db, dL_dx)
 
 
-def d_ReLU(DL_DY, z):# The derivative of the ReLU activation function
-	DR_Dz = DL_DY.copy()
-	DR_Dz[z <= 0] = 0
-	return(DR_Dz)
 
 
-def d_Softmax(DL_DY, y_pred):# Derivative of the Softmax activation function
-	DS_Dz = np.empty_like(DL_DY)
-	for i, (y, dy) in enumerate(zip(y_pred, DL_DY)):
-		y = y.reshape(-1, 1)
-		jacobian_matrix = np.diagflat(y) - np.dot(y, y.T)
-		DS_Dz[i] = np.dot(jacobian_matrix, dy)
-	return(DS_Dz)
 
 def CCE_Loss(y_true, y_pred):# The Categorical Cross-Entropy loss
 	y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
@@ -177,19 +275,7 @@ def d_CCE_Loss(y_true, y_pred):# Derivative of Categorical Cross-Entropy loss
 	return(DL_DY)
 
 
-def d_Sigmoid(DA_Dz, y_pred):# The derivative of the Sigmoid activation function
-	DS_Dz = DA_Dz * (1 - y_pred) * y_pred
-	return(DS_Dz)
 
-def BCE_Loss(y_true, y_pred):# The Binary Cross Entropy loss
-	y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
-	loss = -(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
-	return(loss)
-
-def d_BCE_Loss(y_true,  y_pred):# Derivative of Binary Cross-Entropy loss
-	y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
-	DL_DY = (y_pred - y_true) / (y_pred * (1-y_pred)) / len(y_pred)
-	return(DL_DY)
 
 def Cost(loss):# The Cost function
 	cost = np.mean(loss)
@@ -255,9 +341,6 @@ def d_Dropout(p, DA_Dz):# Dropout layer - derivative
 	DA_Dz *= np.random.binomial(1, 1-p, DA_Dz.shape) / (1-p)
 	return(DA_Dz)
 
-def d_Linear(DL_DY):# The derivative of the Linear activation function
-	DA_Dz = DL_DY.copy()
-	return(DA_Dz)
 
 def MSE_Loss(y_true, y_pred):# The Mean Squared Error loss
 	loss = (y_true - y_pred)**2
@@ -302,11 +385,3 @@ def d_BatchNorm(DA_Dz, z_norm, cache):
 
 
 
-
-def sine_data(samples=1000):
-	X = np.arange(samples).reshape(-1, 1) / samples
-	Y = np.sin(2 * np.pi * X).reshape(-1, 1)
-	return(X, Y)
-
-X, Y = sine_data()
-print(X.shape, Y.shape)
