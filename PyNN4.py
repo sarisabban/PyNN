@@ -13,44 +13,30 @@ class PyNN():
 	def cost(self, loss):
 		''' The cost function '''
 		return(np.mean(loss))
-
-
-
-
-	def train(self, X, Y, loss, optimiser, lr, accuracy, batch_size=None, epochs=1, verbose=0):
-		''' Train the network, forward pass followed by backward pass '''
-		y_true = Y
+	def train(self, X, Y, loss_fn, optimiser, accuracy_fn, batch_size=None, epochs=1, verbose=1000):
+		''' Train the network using forward and backward propagation '''
+		loss = loss_fn()
 		for epoch in range(epochs):
-		# divide into Mini-Baches
-		# steps in mini batches
-
-
-
-			# Forward propagation
 			output = X
+			# Forward Propagation
 			for layer in self.layers:
 				output = layer.forward(output)
 			y_pred = output
-			cost = self.cost(loss().forward(y_true, y_pred))
-			# Tracking metric
-			A = accuracy(y_true, y_pred)
+			cost = self.cost(loss.forward(Y, y_pred))
+			acc = accuracy_fn(Y, y_pred)
 			# Backpropagation
-			grad = loss().backward(y_true, y_pred)
-			grad = self.layers[-1].backward(grad)
-			for i in range(len(self.layers) - 2, -1, -1):
+			grad = loss.backward(Y, y_pred)
+			for i in range(len(self.layers) - 1, -1, -1):
 				grad = self.layers[i].backward(grad)
-			# Gradient descent
+			# Gradient Descent (only for Dense layers)
 			for layer in self.layers:
 				if isinstance(layer, Dense):
-					optimiser(lr, layer)
+					optimiser(0.01, layer)
+			# Print metrics
+			if verbose and epoch % 1000 == 0:
+				print(f"Epoch {epoch}: Loss={cost:.4f}, Accuracy={acc:.4f}")
 
 
-			if verbose == 0:
-				pass
-			elif verbose == 1:
-				print()
-			elif verbose == 2:
-				print(f'Epoch: {epoch:,} | Cost: {cost:.5f} | Accuracy: {A:.5f}')
 
 
 
@@ -84,21 +70,20 @@ def Parameters(inputs=1, outputs=1, alg='he uniform', sd=0.1, a=-0.5, b=0.5):
 	return(w, b, gamma, beta)
 
 class Dense():
-	''' A dense layer '''
+	''' A dense (fully connected) layer '''
 	def __init__(self, inputs=1, outputs=1, alg='he uniform', sd=0.1, a=-0.5, b=0.5):
-		''' Initialise parameters '''
+		''' Initialize weights and biases '''
 		self.w, self.b, self.gamma, self.beta = Parameters(inputs, outputs, alg=alg, sd=sd, a=a, b=b)
-		self.dL_dw, self.dL_db, self.dL_dx = None, None, None
+		self.x = None
 	def forward(self, x):
-		''' The forward pass '''
+		''' Forward pass '''
 		self.x = x
-		z = np.dot(self.x, self.w) + self.b
-		return(z)
-	def backward(self, DA_Dz):
-		''' The backward pass '''
-		self.dL_dw = np.dot(self.x.T, DA_Dz)
-		self.dL_db = np.sum(DA_Dz, axis=0, keepdims=True)
-		self.dL_dx = np.dot(DA_Dz, self.w.T)
+		return np.dot(x, self.w) + self.b
+	def backward(self, grad):
+		''' Backward pass '''
+		self.dL_dw = np.dot(self.x.T, grad)
+		self.dL_db = np.sum(grad, axis=0, keepdims=True)
+		self.dL_dx = np.dot(grad, self.w.T)
 		return(self.dL_dx)
 
 class ReLU():
@@ -143,11 +128,18 @@ def Binary_Accuracy(y_true, y_pred):
 	accuracy = np.mean(predictions==y_true)
 	return(accuracy)
 
+
+
 def SGD(lr, layer):
-	layer.w -= lr * layer.dL_dw
-	layer.b -= lr * layer.dL_db
+	if hasattr(layer, 'dL_dw') and hasattr(layer, 'dL_db'):
+		layer.w -= lr * layer.dL_dw
+		layer.b -= lr * layer.dL_db
 
 
+#def SGD(lr, w, b, dL_dw, dL_db):
+#	w -= lr * dL_dw
+#	b -= lr * dL_db
+#	return(w, b)
 
 
 
@@ -192,7 +184,8 @@ model.add(Sigmoid())
 
 #model.set(loss=BCE_Loss(), optimiser=SGD())
 
-model.train(X, Y, BCE_Loss, SGD, 0.01, Binary_Accuracy, epochs=200000, verbose=1)
+model.train(X, Y, BCE_Loss, SGD, Binary_Accuracy, epochs=200000)
+
 
 
 
