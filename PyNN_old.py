@@ -1,29 +1,3 @@
-import math
-import numpy as np
-np.random.seed(42)
-
-
-
-def Adam(lr,decay,beta1,beta2,e,w,b,dL_dw,dL_db,iters,w_m,w_c,b_m,b_c):# Adam Gradient Descent
-	lr = lr * (1. / (1. + decay * iters))
-	w_m = beta1 * w_m + (1 - beta1) * dL_dw
-	b_m = beta1 * b_m + (1 - beta1) * dL_db
-	w_m_c = w_m / (1 - beta1 ** (iters + 1))
-	b_m_c = b_m / (1 - beta1 ** (iters + 1))
-	w_c = beta2 * w_c + (1 - beta2) * dL_dw**2
-	b_c = beta2 * b_c + (1 - beta2) * dL_db**2
-	w_c_c = w_c / (1 - beta2 ** (iters + 1))
-	b_c_c = b_c / (1 - beta2 ** (iters + 1))
-	w -= lr * w_m_c / (np.sqrt(w_c_c) + e)
-	b -= lr * b_m_c / (np.sqrt(b_c_c) + e)
-	return(w, b, w_m, w_c, b_m, b_c)
-
-
-
-
-
-
-
 def L1L2(w, b, l1w, l1b, l2w, l2b):# L1 + L2 regularisation
 	L1w = l1w * np.sum(np.abs(w))
 	L1b = l1b * np.sum(np.abs(b))
@@ -47,6 +21,8 @@ def d_L1L2(w, b, dL_dw, dL_db, l1w, l1b, l2w, l2b):# Derivative of L1 + L2 regul
 	dL_db += 2 * l2b * b
 	return(dL_dw, dL_db)
 
+
+
 def Dropout(p, y):# Dropout layer - prediction
 	y *= np.random.binomial(1, 1-p, y.shape) / (1-p)
 	return(y)
@@ -54,6 +30,8 @@ def Dropout(p, y):# Dropout layer - prediction
 def d_Dropout(p, DA_Dz):# Dropout layer - derivative
 	DA_Dz *= np.random.binomial(1, 1-p, DA_Dz.shape) / (1-p)
 	return(DA_Dz)
+
+
 
 def BatchNorm(z, g, b, e=1e-7):
 	mean = np.mean(z, axis=0, keepdims=True)
@@ -70,9 +48,3 @@ def d_BatchNorm(DA_Dz, z_norm, cache):
 	dB_dz = (g * (1./np.sqrt(var + e)) / m) * (m * DA_Dz - np.sum(DA_Dz, axis=0)
 	- (1./np.sqrt(var + e))**2 * (z - mean) * np.sum(DA_Dz*(z - mean), axis=0))
 	return(dB_dz, dg, db)
-
-
-
-
-
-

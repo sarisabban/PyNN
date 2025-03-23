@@ -172,50 +172,60 @@ class PyNN():
 		''' The Stochastic Gradient Descent optimiser '''
 		layer.w -= lr * layer.dL_dw
 		layer.b -= lr * layer.dL_db
-
-
-
-
+	def Adam(self, lr, decay, beta1, beta2, e, iters, layer):
+		''' The Adam Gradient Descent optimiser '''
+		lr = lr * (1. / (1. + decay * iters))
+		layer.w_m = beta1 * layer.w_m + (1 - beta1) * layer.dL_dw
+		layer.b_m = beta1 * layer.b_m + (1 - beta1) * layer.dL_db
+		w_m_c = layer.w_m / (1 - beta1 ** (iters + 1))
+		b_m_c = layer.b_m / (1 - beta1 ** (iters + 1))
+		layer.w_c = beta2 * layer.w_c + (1 - beta2) * layer.dL_dw**2
+		layer.b_c = beta2 * layer.b_c + (1 - beta2) * layer.dL_db**2
+		w_c_c = layer.w_c / (1 - beta2 ** (iters + 1))
+		b_c_c = layer.b_c / (1 - beta2 ** (iters + 1))
+		layer.w -= lr * w_m_c / (np.sqrt(w_c_c) + e)
+		layer.b -= lr * b_m_c / (np.sqrt(b_c_c) + e)
 	#---------- Layers ----------#
 	class Dense():
 		''' A dense layer '''
-		def __init__(self,
-					inputs=1, outputs=1,
-					alg='he uniform', sd=0.1, a=-0.5, b=0.5):
+		def __init__(self, inputs=1, outputs=1,
+					alg='he uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5):
 			''' Initialise parameters '''
-			self.w, self.b, self.gamma, self.beta = \
 			self.Parameters(inputs, outputs, alg=alg, sd=sd, a=a, b=b)
 			self.dL_dw, self.dL_db, self.dL_dx = None, None, None
-		def Parameters(self,
-					inputs=1, outputs=1,
-					alg='he uniform', sd=0.1, a=-0.5, b=0.5):
+		def Parameters(self, inputs=1, outputs=1,
+					alg='he uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5):
 			''' Parameter Initialisation '''
 			if alg == 'zeros':
 				w = np.zeros((inputs, outputs))
 			elif alg == 'ones':
 				w = np.ones((inputs, outputs))
 			elif alg == 'random normal':
-				w = np.random.normal(loc=0.0, scale=sd, size=(inputs, outputs))
+				w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
 			elif alg == 'random uniform':
 				w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
 			elif alg == 'glorot normal':
 				sd = 1 / (math.sqrt(inputs + outputs))
-				w =  np.random.normal(loc=0.0, scale=sd, size=(inputs, outputs))
+				w =  np.random.normal(loc=mean, scale=sd, size=(inputs,outputs))
 			elif alg == 'glorot uniform':
 				a = - math.sqrt(6) / (math.sqrt(inputs + outputs))
 				b = math.sqrt(6) / (math.sqrt(inputs + outputs))
 				w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
 			elif alg == 'he normal':
 				sd = 2 / (math.sqrt(inputs))
-				w = np.random.normal(loc=0.0, scale=sd, size=(inputs, outputs))
+				w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
 			elif alg == 'he uniform':
 				a = - math.sqrt(6) / (math.sqrt(inputs))
 				b = math.sqrt(6) / (math.sqrt(inputs))
 				w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
-			b = np.zeros((1, outputs))
-			gamma = np.ones((1, outputs))
-			beta = np.zeros((1, outputs))
-			return(w, b, gamma, beta)
+			self.w = w
+			self.b = np.zeros((1, outputs))
+			self.beta = np.zeros((1, outputs))
+			self.gamma = np.ones((1, outputs))
+			self.w_m = np.zeros_like(w)
+			self.w_c = np.zeros_like(w)
+			self.b_m = np.zeros_like(b)
+			self.b_c = np.zeros_like(b)
 		def forward(self, x):
 			self.x = x
 			z = np.dot(self.x, self.w) + self.b
@@ -238,7 +248,7 @@ class PyNN():
 	def train(self, X, Y, loss, optimiser, lr, accuracy, batch_size=None, epochs=1, verbose=0):
 		''' Train the network, forward pass followed by backward pass '''
 		y_true = Y
-		if loss == 'BCE':
+		if loss.upper() == 'BCE':
 			loss_fn = self.BCE_Loss()
 		for epoch in range(epochs):
 		# divide into Mini-Baches
@@ -254,7 +264,7 @@ class PyNN():
 			y_pred = output
 			cost = self.cost(loss_fn.forward(y_true, y_pred))
 			# Tracking metric
-			if accuracy == 'binary':
+			if accuracy.upper() == 'BINARY':
 				A = self.Binary_Accuracy(y_true, y_pred)
 			# Backpropagation
 			grad = loss_fn.backward(y_true, y_pred)
@@ -264,8 +274,13 @@ class PyNN():
 			# Gradient descent
 			for layer in self.layers:
 				if isinstance(layer, self.Dense):
-					if optimiser == 'SGD':
+					if optimiser.upper() == 'SGD':
 						self.SGD(lr, layer)
+					elif optimiser.upper() == 'ADAM':
+
+						decay, beta1, beta2, e, = 5e-7, 0.9, 0.999, 1.e-7
+
+						self.Adam(lr, decay, beta1, beta2, e, epoch, layer)
 			self.verbosity(epoch, cost, A, verbose=verbose)
 
 
@@ -273,7 +288,7 @@ class PyNN():
 
 
 #	''' Train on training set, then validate on valid, after training test of test set '''
-#	''' Add a training checkpoint '''
+#	''' Add early stopping '''
 
 
 
@@ -309,33 +324,12 @@ def spiral_data(samples, classes):
 		Y[ix] = class_n
 	return X, Y
 
-X, Y = spiral_data(samples=100, classes=2) # X = (200, 2)   y = (200,)
-Y = Y.reshape(-1, 1) # y = (200, 1)
-
-
+X, Y = spiral_data(samples=100, classes=2)
+Y = Y.reshape(-1, 1)
 
 model = PyNN()
-model.add(model.Dense(2, 64, alg='random normal'))
+model.add(model.Dense(2, 64))
 model.add(model.ReLU())
-model.add(model.Dense(64, 1, alg='random normal'))
+model.add(model.Dense(64, 1))
 model.add(model.Sigmoid())
-
-
-
-
-
-model.train(X, Y, 'BCE', 'SGD', 0.01, 'binary', epochs=200000, verbose=1)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+model.train(X, Y, 'BCE', 'Adam', 0.01, 'binary', epochs=200000, verbose=1)
