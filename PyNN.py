@@ -1,4 +1,5 @@
 import math
+#import pickle as pkl
 import numpy as np
 np.random.seed(42)
 
@@ -14,26 +15,17 @@ class PyNN():
 	def cost(self, loss):
 		''' The cost function '''
 		return(np.mean(loss))
-	def verbosity(self, epoch, cost, step, accuracy, verbose=1):
-		''' Control level of information printout during training '''
-		E, B, C, A = epoch, step, cost, accuracy
-		if verbose == 0:
-			pass
-		elif verbose == 1:
-			s = f'Epoch: {E:,} | Cost: {C:.5f} | Accuracy: {A:.5f}'
-			print(s)
-		elif verbose == 2:
-			s = f'Epoch: {E:,} | Batch: {B:,} | Cost: {C:.5f} | Accuracy: {A:.5f}'
-			print(s)
 
 
 
 #	def show(self):
 #		''' Print out the structure of the network '''
-#	def load(self, path):
-#		''' Load model '''
 #	def save(self, path):
 #		''' Save model '''
+#		#### serialise the self.layers object
+#	def load(self, path):
+#		''' Load model '''
+#		#### Load the layers object into self.layers
 #		with open(path, 'wb') as f:
 #		pickle.dump(self.w, f)
 #	def predict(self):
@@ -114,22 +106,25 @@ class PyNN():
 				DS_Dz[i] = np.dot(jacobian_matrix, dy)
 			return(DS_Dz)
 	#---------- Accuracy Functions ---------- #
-	def Regression_Accuracy(self, y_true, y_pred):
+	class Regression_Accuracy():
 		''' Accuracy for regression models '''
-		accuracy_precision = np.std(y_true) / 250
-		predictions = y_pred
-		accuracy = np.mean(np.absolute(predictions-y_true) < accuracy_precision)
-		return(accuracy)
-	def Binary_Accuracy(self, y_true, y_pred):
+		def calc(self, y_true, y_pred):
+			accuracy_precision = np.std(y_true) / 250
+			predictions = y_pred
+			accuracy = np.mean(np.absolute(predictions-y_true) < accuracy_precision)
+			return(accuracy)
+	class Binary_Accuracy():
 		''' Accuracy for binary classification models '''
-		predictions = (y_pred > 0.5) * 1
-		accuracy = np.mean(predictions == y_true)
-		return(accuracy)
-	def Categorical_Accuracy(self, y_true, y_pred):
+		def calc(self, y_true, y_pred):
+			predictions = (y_pred > 0.5) * 1
+			accuracy = np.mean(predictions == y_true)
+			return(accuracy)
+	class Categorical_Accuracy():
 		''' Accuracy for categorical classification models '''
-		predictions = np.argmax(y_pred, axis=1)
-		accuracy = np.mean(predictions == y_true)
-		return(accuracy)
+		def calc(self, y_true, y_pred):
+			predictions = np.argmax(y_pred, axis=1)
+			accuracy = np.mean(predictions == y_true)
+			return(accuracy)
 	#---------- Loss Functions ---------- #
 	class BCE_Loss():
 		''' The Binary Cross-Entropy loss function '''
@@ -228,7 +223,7 @@ class PyNN():
 			self.dL_dw, self.dL_db, self.dL_dx = None, None, None
 		def Parameters(self, inputs=1, outputs=1,
 					alg='he uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5):
-			''' Parameter Initialisation '''
+			''' Parameter initialisation function '''
 			if alg == 'zeros':
 				w = np.zeros((inputs, outputs))
 			elif alg == 'ones':
@@ -268,55 +263,43 @@ class PyNN():
 			self.dL_db = np.sum(DA_Dz, axis=0, keepdims=True)
 			self.dL_dx = np.dot(DA_Dz, self.w.T)
 			return(self.dL_dx)
-
-
-
-
-
-
-
-
-
 	#---------- Training ---------- #
-	def train(self, X, Y, 
-			X_valid=None,
-			Y_valid=None,
-			X_tests=None,
-			Y_tests=None,
+	def train(self,
+			X_train=None, Y_train=None,
+			X_valid=None, Y_valid=None,
+			X_tests=None, Y_tests=None,
 			loss='BCE',
-			optimiser='SGD',
-			lr=0.01,
-			decay=5e-7,
-			beta1=0.9,
-			beta2=0.999,
-			e=1e-7,
-			accuracy='binary',
+			optimiser='SGD', lr=0.1, decay=5e-7, beta1=0.9, beta2=0.999, e=1e-7,
+			accuracy='BINARY',
 			batch_size=None,
 			epochs=1,
 			verbose=1):
 		''' Train the network, forward pass followed by backward pass '''
 		steps = 0
-		X_batch = X
-		Y_batch = Y
-		if loss.upper() == 'BCE':
-			loss_fn = self.BCE_Loss()
-		if batch_size is not None:
-			steps = X.shape[0] // batch_size
+		X_train_batch = X_train
+		Y_train_batch = Y_train
+		if   loss.lower() == 'bce': loss_fn = self.BCE_Loss()
+		elif loss.lower() == 'cce': loss_fn = self.CCE_Loss()
+		elif loss.lower() == 'mse': loss_fn = self.MSE_Loss()
+		elif loss.lower() == 'mae': loss_fn = self.MAE_Loss()
+		if   accuracy.lower() == 'regression': acc = self.Regression_Accuracy()
+		elif accuracy.lower() == 'binary':     acc = self.Binary_Accuracy()
+		elif accuracy.lower() == 'categorical':acc = self.Categorical_Accuracy()
+		if batch_size is not None: steps = X_train.shape[0] // batch_size
 		for epoch in range(epochs):
+			############# EARLY STOPPING HERE #################
 			for step in range(steps + 1):
 				if batch_size is not None:
-					X_batch = X[step*batch_size:(step+1)*batch_size]
-					Y_batch = Y[step*batch_size:(step+1)*batch_size]
+					X_train_batch = X[step*batch_size:(step+1)*batch_size]
+					Y_train_batch = Y[step*batch_size:(step+1)*batch_size]
 				# Forward propagation
-				output = X_batch
-				y_true = Y_batch
-				for layer in self.layers:
-					output = layer.forward(output)
+				output = X_train_batch
+				y_true = Y_train_batch
+				for layer in self.layers: output = layer.forward(output)
 				y_pred = output
-				cost = self.cost(loss_fn.forward(y_true, y_pred))
-				# Tracking metric
-				if accuracy.upper() == 'BINARY':
-					A = self.Binary_Accuracy(y_true, y_pred)
+				cost_train = self.cost(loss_fn.forward(y_true, y_pred))
+				# Accuracy calculation
+				accuracy_train = acc.calc(y_true, y_pred)
 				# Backpropagation
 				grad = loss_fn.backward(y_true, y_pred)
 				grad = self.layers[-1].backward(grad)
@@ -325,27 +308,61 @@ class PyNN():
 				# Gradient descent
 				for layer in self.layers:
 					if isinstance(layer, self.Dense):
-						if optimiser.upper() == 'SGD':
+						if optimiser.lower() == 'sgd':
 							self.SGD(lr, decay, epoch, layer)
-						elif optimiser.upper() == 'ADAGRAD':
+						elif optimiser.lower() == 'adagrad':
 							self.Adagrad(lr, decay, epoch, e, layer)
-						elif optimiser.upper() == 'RMSPROP':
+						elif optimiser.lower() == 'rmsprop':
 							self.RMSprop(lr, decay, epoch, beta1, e, layer)
-						elif optimiser.upper() == 'ADAM':
+						elif optimiser.lower() == 'adam':
 							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
 				if verbose == 2:
-					self.verbosity(epoch, cost, step, A, verbose=verbose)
+					self.verbosity('train', epoch, step, cost_train, accuracy_train)
 			if verbose == 1:
-				self.verbosity(epoch, cost, step, A, verbose=verbose)
+				self.verbosity('train', epoch, step, cost_train, accuracy_train)
+			# Evaluate validation set
+			if X_valid is not None and Y_valid is not None:
+				output = X_valid
+				y_true = Y_valid
+				for layer in self.layers: output = layer.forward(output)
+				y_pred = output
+				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
+				accuracy_valid = acc.calc(y_true, y_pred)
+				if verbose == 1 or verbose == 2:
+					self.verbosity('validation', epoch, step, cost_valid, accuracy_valid)
+		# Evaluate test set
+		if X_tests is not None and Y_tests is not None:
+			output = X_tests
+			y_true = Y_tests
+			for layer in self.layers: output = layer.forward(output)
+			y_pred = output
+			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
+			accuracy_tests = acc.calc(y_true, y_pred)
+			if verbose == 1 or verbose == 2:
+				self.verbosity('test', epoch, step, cost_tests, accuracy_tests)
 
 
 
 
-# Train on training / validation / test sets
 # Add early stopping
 # Regularisation
 
 
+	def verbosity(self, sets, E, S, C, A):
+		''' Control level of information printout during training '''
+		if sets.lower() == 'train':
+			s1 = f'Set: Training |'
+			s2 = f'Epoch: {E:,} | Batch: {S:,} |'
+			s3 = f'Cost: {C:.5f} | Accuracy: {A:.5f}'
+			string = s1 + s2 + s3
+		elif sets.lower() == 'validation':
+			s1 = f'Set: Validation | '
+			s2 = f'Epoch: {E:,} | '
+			s3 = f'Cost: {C:.5f} | Accuracy: {A:.5f}'
+			string = s1 + s2 + s3
+		elif sets.lower() == 'test':
+			string = f'Set: Test | Cost: {C:.5f} | Accuracy: {A:.5f}'
+		print(string)
 
 
 
@@ -355,14 +372,7 @@ class PyNN():
 
 
 
-
-
-
-
-
-
-
-
+import sklearn
 
 
 #----- Import Data -----#
@@ -377,8 +387,13 @@ def spiral_data(samples, classes):
 		Y[ix] = class_n
 	return X, Y
 
-X, Y = spiral_data(samples=100, classes=2)
+X, Y = spiral_data(samples=140, classes=2)
 Y = Y.reshape(-1, 1)
+
+X_train, X_valid, Y_train, Y_valid = sklearn.model_selection.train_test_split(X, Y, train_size=200)
+X_valid, X_tests, Y_valid, Y_tests = sklearn.model_selection.train_test_split(X_valid, Y_valid, train_size=40)
+
+
 
 model = PyNN()
 model.add(model.Dense(2, 64))
@@ -386,4 +401,4 @@ model.add(model.ReLU())
 model.add(model.Dense(64, 1))
 model.add(model.Sigmoid())
 
-model.train(X, Y, optimiser='rmsprop', epochs=200)
+model.train(X_train, Y_train, X_valid, Y_valid, X_tests, Y_tests, batch_size=16, epochs=200, verbose=2)
