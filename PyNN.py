@@ -14,16 +14,6 @@ class PyNN():
 	def cost(self, loss):
 		''' The cost function '''
 		return(np.mean(loss))
-	def verbosity(self, epoch, cost, accuracy, *, verbose=1):
-		''' Control level of information printout during training '''
-		E, C, A = epoch, cost, accuracy
-		string = f'Epoch: {E:,} | Cost: {C:.5f} | Accuracy: {A:.5f}'
-		if verbose == 0:
-			pass
-		elif verbose == 1:
-			if epoch % 100 == 0: print(string)
-		elif verbose == 2:
-			print(string)
 
 
 #	def show(self):
@@ -168,8 +158,9 @@ class PyNN():
 			DL_DY = (np.sign(y_true - y_pred) / len(y_pred[0])) / len(y_pred)
 			return(DL_DY)
 	#---------- Optimisers ---------- #
-	def SGD(self, lr, layer):
+	def SGD(self, lr, decay, iters, layer):
 		''' The Stochastic Gradient Descent optimiser '''
+		lr = lr * (1. / (1. + decay * iters))
 		layer.w -= lr * layer.dL_dw
 		layer.b -= lr * layer.dL_db
 	def Adam(self, lr, decay, beta1, beta2, e, iters, layer):
@@ -245,46 +236,56 @@ class PyNN():
 
 
 	#---------- Training ---------- #
-	def train(self, X, Y, loss, optimiser, lr, accuracy, batch_size=None, epochs=1, verbose=0):
+	def train(self, X, Y, loss, optimiser, lr, decay, beta1, beta2, e, accuracy, batch_size=None, epochs=1, verbose=0):
 		''' Train the network, forward pass followed by backward pass '''
-		y_true = Y
+		steps = 0
+		X_batch = X
+		Y_batch = Y
 		if loss.upper() == 'BCE':
 			loss_fn = self.BCE_Loss()
+		if batch_size is not None:
+			steps = X.shape[0] // batch_size
 		for epoch in range(epochs):
-		# divide into Mini-Baches
-#		steps = X.shape[0] // batch_size
-		# steps in mini batches
+			for step in range(steps + 1):
+				if batch_size is not None:
+					X_batch = X[step*batch_size:(step+1)*batch_size]
+					Y_batch = Y[step*batch_size:(step+1)*batch_size]
+				# Forward propagation
+				output = X_batch
+				y_true = Y_batch
+				for layer in self.layers:
+					output = layer.forward(output)
+				y_pred = output
+				cost = self.cost(loss_fn.forward(y_true, y_pred))
+				# Tracking metric
+				if accuracy.upper() == 'BINARY':
+					A = self.Binary_Accuracy(y_true, y_pred)
+				# Backpropagation
+				grad = loss_fn.backward(y_true, y_pred)
+				grad = self.layers[-1].backward(grad)
+				for i in range(len(self.layers) - 2, -1, -1):
+					grad = self.layers[i].backward(grad)
+				# Gradient descent
+				for layer in self.layers:
+					if isinstance(layer, self.Dense):
+						if optimiser.upper() == 'SGD':
+							self.SGD(lr, decay, epoch, layer)
+						elif optimiser.upper() == 'ADAM':
+							self.Adam(lr, decay, beta1, beta2, e, epoch, layer)
+				self.verbosity(epoch, cost, A, verbose=verbose)
 
 
 
-			# Forward propagation
-			output = X
-			for layer in self.layers:
-				output = layer.forward(output)
-			y_pred = output
-			cost = self.cost(loss_fn.forward(y_true, y_pred))
-			# Tracking metric
-			if accuracy.upper() == 'BINARY':
-				A = self.Binary_Accuracy(y_true, y_pred)
-			# Backpropagation
-			grad = loss_fn.backward(y_true, y_pred)
-			grad = self.layers[-1].backward(grad)
-			for i in range(len(self.layers) - 2, -1, -1):
-				grad = self.layers[i].backward(grad)
-			# Gradient descent
-			for layer in self.layers:
-				if isinstance(layer, self.Dense):
-					if optimiser.upper() == 'SGD':
-						self.SGD(lr, layer)
-					elif optimiser.upper() == 'ADAM':
-
-						decay, beta1, beta2, e, = 5e-7, 0.9, 0.999, 1.e-7
-
-						self.Adam(lr, decay, beta1, beta2, e, epoch, layer)
-			self.verbosity(epoch, cost, A, verbose=verbose)
-
-
-
+	def verbosity(self, epoch, cost, accuracy, *, verbose=1):
+		''' Control level of information printout during training '''
+		E, C, A = epoch, cost, accuracy
+		string = f'Epoch: {E:,} | Cost: {C:.5f} | Accuracy: {A:.5f}'
+		if verbose == 0:
+			pass
+		elif verbose == 1:
+			print(string)
+		elif verbose == 2:
+			print(string) ###################### with mini-batches
 
 
 #	''' Train on training set, then validate on valid, after training test of test set '''
@@ -332,4 +333,5 @@ model.add(model.Dense(2, 64))
 model.add(model.ReLU())
 model.add(model.Dense(64, 1))
 model.add(model.Sigmoid())
-model.train(X, Y, 'BCE', 'Adam', 0.01, 'binary', epochs=200000, verbose=1)
+
+model.train(X, Y, 'BCE', 'sgd', 0.01, 5e-7, 0.9, 0.999, 1.e-7, 'binary', batch_size=128, epochs=20, verbose=1)
