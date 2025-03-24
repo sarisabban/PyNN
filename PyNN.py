@@ -145,7 +145,10 @@ class PyNN():
 		''' The Categorical Cross-Entropy loss '''
 		def forward(self, y_true, y_pred):
 			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
-			y_pred_vector = y_pred[range(len(y_pred)), y_true]
+			if len(y_true.shape) == 1:
+				y_pred_vector = y_pred[range(len(y_pred)), y_true]
+			elif len(y_true.shape) == 2:
+				y_pred_vector = np.sum(y_pred_clipped * y_true, axis=1)
 			loss = -np.log(y_pred_vector)
 			return(loss)
 		def backward(self, y_true,  y_pred):
@@ -175,7 +178,34 @@ class PyNN():
 		lr = lr * (1. / (1. + decay * iters))
 		layer.w -= lr * layer.dL_dw
 		layer.b -= lr * layer.dL_db
-	def Adam(self, lr, decay, beta1, beta2, e, iters, layer):
+	def Adagrad(self, lr, decay, iters, e, layer):
+		''' The Adagrad optimiser '''
+		lr = lr * (1. / (1. + decay * iters))
+		self.cache = {}
+		if layer not in self.cache:
+			w0 = np.zeros_like(layer.w)
+			b0 = np.zeros_like(layer.b)
+			self.cache[layer] = {'w':w0, 'b':b0}
+		self.cache[layer]['w'] += layer.dL_dw ** 2
+		self.cache[layer]['b'] += layer.dL_db ** 2
+		layer.w -= (lr / (np.sqrt(self.cache[layer]['w']) + e)) * layer.dL_dw
+		layer.b -= (lr / (np.sqrt(self.cache[layer]['b']) + e)) * layer.dL_db
+	def RMSprop(self, lr, decay, iters, beta, e, layer):
+		''' The RMSprop optimiser '''
+		# Initialize cache if not already
+		lr = lr * (1. / (1. + decay * iters))
+		self.cache = {}
+		if layer not in self.cache:
+			w0 = np.zeros_like(layer.w)
+			b0 = np.zeros_like(layer.b)
+			self.cache[layer] = {'w':w0, 'b':b0}
+		w_cache = beta * self.cache[layer]['w'] + (1 - beta) * layer.dL_dw ** 2
+		b_cache = beta * self.cache[layer]['b'] + (1 - beta) * layer.dL_db ** 2
+		self.cache[layer]['w'] = w_cache
+		self.cache[layer]['b'] = b_cache
+		layer.w -= (lr / (np.sqrt(self.cache[layer]['w']) + e)) * layer.dL_dw
+		layer.b -= (lr / (np.sqrt(self.cache[layer]['b']) + e)) * layer.dL_db
+	def Adam(self, lr, decay, iters, beta1, beta2, e, layer):
 		''' The Adam Gradient Descent optimiser '''
 		lr = lr * (1. / (1. + decay * iters))
 		layer.w_m = beta1 * layer.w_m + (1 - beta1) * layer.dL_dw
@@ -248,7 +278,22 @@ class PyNN():
 
 
 	#---------- Training ---------- #
-	def train(self, X, Y, loss, optimiser, lr, decay, beta1, beta2, e, accuracy, batch_size=None, epochs=1, verbose=0):
+	def train(self, X, Y, 
+			X_valid=None,
+			Y_valid=None,
+			X_tests=None,
+			Y_tests=None,
+			loss='BCE',
+			optimiser='SGD',
+			lr=0.01,
+			decay=5e-7,
+			beta1=0.9,
+			beta2=0.999,
+			e=1e-7,
+			accuracy='binary',
+			batch_size=None,
+			epochs=1,
+			verbose=1):
 		''' Train the network, forward pass followed by backward pass '''
 		steps = 0
 		X_batch = X
@@ -282,8 +327,12 @@ class PyNN():
 					if isinstance(layer, self.Dense):
 						if optimiser.upper() == 'SGD':
 							self.SGD(lr, decay, epoch, layer)
+						elif optimiser.upper() == 'ADAGRAD':
+							self.Adagrad(lr, decay, epoch, e, layer)
+						elif optimiser.upper() == 'RMSPROP':
+							self.RMSprop(lr, decay, epoch, beta1, e, layer)
 						elif optimiser.upper() == 'ADAM':
-							self.Adam(lr, decay, beta1, beta2, e, epoch, layer)
+							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
 				if verbose == 2:
 					self.verbosity(epoch, cost, step, A, verbose=verbose)
 			if verbose == 1:
@@ -292,10 +341,9 @@ class PyNN():
 
 
 
-#	''' Train on training set, then validate on valid, after training test of test set '''
-#	''' Add early stopping '''
-
-
+# Train on training / validation / test sets
+# Add early stopping
+# Regularisation
 
 
 
@@ -338,4 +386,4 @@ model.add(model.ReLU())
 model.add(model.Dense(64, 1))
 model.add(model.Sigmoid())
 
-model.train(X, Y, 'BCE', 'sgd', 0.01, 5e-7, 0.9, 0.999, 1.e-7, 'binary', batch_size=128, epochs=200, verbose=1)
+model.train(X, Y, optimiser='rmsprop', epochs=200)
