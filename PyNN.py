@@ -14,6 +14,18 @@ class PyNN():
 	def cost(self, loss):
 		''' The cost function '''
 		return(np.mean(loss))
+	def verbosity(self, epoch, cost, step, accuracy, verbose=1):
+		''' Control level of information printout during training '''
+		E, B, C, A = epoch, step, cost, accuracy
+		if verbose == 0:
+			pass
+		elif verbose == 1:
+			s = f'Epoch: {E:,} | Cost: {C:.5f} | Accuracy: {A:.5f}'
+			print(s)
+		elif verbose == 2:
+			s = f'Epoch: {E:,} | Batch: {B:,} | Cost: {C:.5f} | Accuracy: {A:.5f}'
+			print(s)
+
 
 
 #	def show(self):
@@ -272,20 +284,12 @@ class PyNN():
 							self.SGD(lr, decay, epoch, layer)
 						elif optimiser.upper() == 'ADAM':
 							self.Adam(lr, decay, beta1, beta2, e, epoch, layer)
-				self.verbosity(epoch, cost, A, verbose=verbose)
+				if verbose == 2:
+					self.verbosity(epoch, cost, step, A, verbose=verbose)
+			if verbose == 1:
+				self.verbosity(epoch, cost, step, A, verbose=verbose)
 
 
-
-	def verbosity(self, epoch, cost, accuracy, *, verbose=1):
-		''' Control level of information printout during training '''
-		E, C, A = epoch, cost, accuracy
-		string = f'Epoch: {E:,} | Cost: {C:.5f} | Accuracy: {A:.5f}'
-		if verbose == 0:
-			pass
-		elif verbose == 1:
-			print(string)
-		elif verbose == 2:
-			print(string) ###################### with mini-batches
 
 
 #	''' Train on training set, then validate on valid, after training test of test set '''
@@ -334,4 +338,4 @@ model.add(model.ReLU())
 model.add(model.Dense(64, 1))
 model.add(model.Sigmoid())
 
-model.train(X, Y, 'BCE', 'sgd', 0.01, 5e-7, 0.9, 0.999, 1.e-7, 'binary', batch_size=128, epochs=20, verbose=1)
+model.train(X, Y, 'BCE', 'sgd', 0.01, 5e-7, 0.9, 0.999, 1.e-7, 'binary', batch_size=128, epochs=200, verbose=1)
