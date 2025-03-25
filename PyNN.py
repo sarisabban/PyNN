@@ -286,6 +286,25 @@ class PyNN():
 		elif accuracy.lower() == 'binary':     acc = self.Binary_Accuracy()
 		elif accuracy.lower() == 'categorical':acc = self.Categorical_Accuracy()
 		if batch_size is not None: steps = X_train.shape[0] // batch_size
+
+#		if verbose != 0:
+#			V = self.verbosity()
+#			V.start(X_train, X_valid, X_tests)
+
+#		train_examples = X_train.shape[0]
+#		valid_examples = X_valid.shape[0]
+#		tests_examples = X_tests.shape[0]
+#		s1 = f'Train on {train_examples} examples'
+#		s2 = f'validate on {valid_examples} examples'
+#		s3 = f'test on {tests_examples} examples'
+#		s4 = f'training batches {steps}'
+#
+#		print(s1, s2, s3, s4)
+
+
+
+
+
 		for epoch in range(epochs):
 			############# EARLY STOPPING HERE #################
 			for step in range(steps + 1):
@@ -316,10 +335,15 @@ class PyNN():
 							self.RMSprop(lr, decay, epoch, beta1, e, layer)
 						elif optimiser.lower() == 'adam':
 							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
-				if verbose == 2:
-					self.verbosity('train', epoch, step, cost_train, accuracy_train)
-			if verbose == 1:
-				self.verbosity('train', epoch, step, cost_train, accuracy_train)
+
+				print(epoch, cost_train, accuracy_train)
+#			if verbose == 1:
+#				print(f'Epoch: {epoch+1:,}/{epochs:,} | Cost: {cost_train:.5f} | Accuracy: {accuracy_train:.5f}')
+
+#				if verbose == 2:
+#					self.verbosity('train', epoch, step, cost_train, accuracy_train)
+#			if verbose == 1:
+#				self.verbosity('train', epoch, step, cost_train, accuracy_train)
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
 				output = X_valid
@@ -328,8 +352,8 @@ class PyNN():
 				y_pred = output
 				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
 				accuracy_valid = acc.calc(y_true, y_pred)
-				if verbose == 1 or verbose == 2:
-					self.verbosity('validation', epoch, step, cost_valid, accuracy_valid)
+#				if verbose == 1 or verbose == 2:
+#					self.verbosity('validation', epoch, step, cost_valid, accuracy_valid)
 		# Evaluate test set
 		if X_tests is not None and Y_tests is not None:
 			output = X_tests
@@ -338,8 +362,10 @@ class PyNN():
 			y_pred = output
 			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
 			accuracy_tests = acc.calc(y_true, y_pred)
-			if verbose == 1 or verbose == 2:
-				self.verbosity('test', epoch, step, cost_tests, accuracy_tests)
+
+
+#			if verbose == 1 or verbose == 2:
+#				self.verbosity('test', epoch, step, cost_tests, accuracy_tests)
 
 
 
@@ -348,21 +374,52 @@ class PyNN():
 # Regularisation
 
 
-	def verbosity(self, sets, E, S, C, A):
-		''' Control level of information printout during training '''
-		if sets.lower() == 'train':
-			s1 = f'Set: Training |'
-			s2 = f'Epoch: {E:,} | Batch: {S:,} |'
-			s3 = f'Cost: {C:.5f} | Accuracy: {A:.5f}'
-			string = s1 + s2 + s3
-		elif sets.lower() == 'validation':
-			s1 = f'Set: Validation | '
-			s2 = f'Epoch: {E:,} | '
-			s3 = f'Cost: {C:.5f} | Accuracy: {A:.5f}'
-			string = s1 + s2 + s3
-		elif sets.lower() == 'test':
-			string = f'Set: Test | Cost: {C:.5f} | Accuracy: {A:.5f}'
-		print(string)
+#	class verbosity():
+#		''' Control level of information printout during training '''
+#		def start(self, train, valid, tests):
+#			if isinstance(train, np.ndarray): train = train.shape[0]
+#			if isinstance(valid, np.ndarray): valid = valid.shape[0]
+#			if isinstance(tests, np.ndarray): tests = tests.shape[0]
+#			R = '\33[31m'
+#			B = '\33[34m'
+#			G = '\33[32m'
+#			O = '\33[33m'
+#			g = '\33[90m'
+#			off = '\033[39m'
+#
+#			s1 = f'Train on {O}{train}{off} examples'
+#			s2 = f'validate on {O}{valid}{off} examples'
+#			s3 = f'test on {O}{tests}{off} examples'
+#			s4 = f'training batches {steps}'
+#
+#			print(s1, s2, s3)
+
+	
+#		def one(self, sets, E, S, C, A):
+#		train_examples = X_train.shape[0]
+#		valid_examples = X_valid.shape[0]
+#		tests_examples = X_tests.shape[0]
+#		s1 = f'Train on {train_examples} examples'
+#		s2 = f'validate on {valid_examples} examples'
+#		s3 = f'test on {tests_examples} examples'
+#		s4 = f'training batches {steps}'
+#
+#		print(s1, s2, s3, s4)
+
+
+#		if sets.lower() == 'train':
+#			s1 = f'Set: Training |'
+#			s2 = f'Epoch: {E:,} | Batch: {S:,} |'
+#			s3 = f'Cost: {C:.5f} | Accuracy: {A:.5f}'
+#			string = s1 + s2 + s3
+#		elif sets.lower() == 'validation':
+#			s1 = f'Set: Validation | '
+#			s2 = f'Epoch: {E:,} | '
+#			s3 = f'Cost: {C:.5f} | Accuracy: {A:.5f}'
+#			string = s1 + s2 + s3
+#		elif sets.lower() == 'test':
+#			string = f'Set: Test | Cost: {C:.5f} | Accuracy: {A:.5f}'
+#		print(string)
 
 
 
@@ -401,4 +458,12 @@ model.add(model.ReLU())
 model.add(model.Dense(64, 1))
 model.add(model.Sigmoid())
 
-model.train(X_train, Y_train, X_valid, Y_valid, X_tests, Y_tests, batch_size=16, epochs=200, verbose=2)
+model.train(
+		X_train, 
+		Y_train, 
+		X_valid, 
+		Y_valid, 
+#		X_tests, 
+#		Y_tests, 
+#		batch_size=16, 
+		epochs=200, verbose=1)
