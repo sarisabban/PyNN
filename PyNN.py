@@ -1,4 +1,5 @@
 import math
+import pickle
 import numpy as np
 
 np.random.seed(42)
@@ -59,12 +60,16 @@ class PyNN():
 
 
 
-#	def save(self, path):
-#		''' Save model '''
-#		#### serialise the self.layers object
-#	def load(self, path):
-#		''' Load model '''
-#		#### Load the layers object into self.layers
+	def save(self, path='./model'):
+		''' Save model '''
+		with open(f'{path}.pkl', 'wb') as f:
+			pickle.dump(self.layers, f)
+	def load(self, path='./model'):
+		''' Load model '''
+		with open(f'{path}.pkl', 'rb') as f:
+			self.layers = pickle.load(f)
+
+
 #		with open(path, 'wb') as f:
 #		pickle.dump(self.w, f)
 #	def predict(self):
@@ -449,5 +454,4 @@ model.add(model.Sigmoid())
 model.add(model.Dense(64, 1))
 model.add(model.Linear())
 
-model.show()
 #model.train(X, Y, loss='MSE', accuracy='regression', lr=0.05, epochs=10)
