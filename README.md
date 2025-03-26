@@ -22,7 +22,7 @@ pip install git+https://github.com/sarisabban/PyNN
 
 ## Usage
 ```py
-from PyNN import *
+from pynn import *
 
 # Generate some data
 def sine_data(samples=1000):
