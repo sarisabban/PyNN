@@ -1,6 +1,6 @@
 import math
-#import pickle as pkl
 import numpy as np
+
 np.random.seed(42)
 
 class PyNN():
@@ -12,27 +12,74 @@ class PyNN():
 	def add(self, layer):
 		''' Add a layer to the network '''
 		self.layers.append(layer)
+	def shuffle_data(self, X, Y):
+		''' Shuffle X and Y in unison '''
+		indices = np.random.permutation(X.shape[0])
+		return(X[indices], Y[indices])
 	def cost(self, loss):
 		''' The cost function '''
 		return(np.mean(loss))
+	def forward(self, X, Y):
+		''' Forward propagation '''
+		for layer in self.layers:
+			X = layer.forward(X)
+		output = X
+		return(output)
+	def backward(self, dy):
+		''' Backpropagation '''
+		dx = self.layers[-1].backward(dy)
+		for i in range(len(self.layers) - 2, -1, -1):
+			dx = self.layers[i].backward(dx)
+		return(dx)
 
 
 
-#	def show(self):
-#		''' Print out the structure of the network '''
-#	def save(self, path):
-#		''' Save model '''
-#		#### serialise the self.layers object
-#	def load(self, path):
-#		''' Load model '''
-#		#### Load the layers object into self.layers
-#		with open(path, 'wb') as f:
-#		pickle.dump(self.w, f)
-#	def predict(self):
-#	''' Perform a prediction '''
-#	run training loop without backprop
-#	def GPU(self):
-#	''' Use GPU instead of CPU '''
+
+
+
+
+	class EarlyStopping():
+		def __init__(self, patience=5, min_delta=1e-4, min_val_loss=None, min_grad=1e-6):
+			self.patience = patience
+			self.min_delta = min_delta
+			self.min_val_loss = min_val_loss
+			self.min_grad = min_grad
+			self.max_epochs = max_epochs
+			self.best_val_loss = float('inf')
+			self.counter = 0
+			self.epoch = 0
+		def check_stop(self, val_loss, val_acc, train_loss, gradients):
+			self.epoch += 1
+			if val_loss < self.best_val_loss - self.min_delta:
+				self.best_val_loss = val_loss
+				self.counter = 0
+			else:
+				self.counter += 1
+				if self.counter >= self.patience:
+					print('Stopping early: Validation loss plateaued')
+					return(True)
+			if self.epoch > 1 and val_acc < self.best_val_loss:
+				print('Stopping early: Validation accuracy dropped')
+				return(True)
+			if self.min_val_loss is not None and val_loss <= self.min_val_loss:
+				print('Stopping early: Minimum validation loss reached')
+				return(True)
+			if all(abs(g) < self.min_grad for g in gradients):
+				print('Stopping early: Gradient updates too small')
+				return(True)
+			if self.epoch > 1 and abs(train_loss - self.best_val_loss) < self.min_delta:
+				print('Stopping early: Training loss plateaued')
+				return(True)
+			return(False)
+
+
+
+
+
+
+
+
+
 
 
 
@@ -43,36 +90,36 @@ class PyNN():
 	class Step():
 		''' The Step activation function (for binary classification) '''
 		def forward(self, z):
-			self.y = np.where(z >= 0, 1, 0)
-			return self.y
-		def backward(self, DL_DY):
-			return(np.zeros_like(DL_DY))
+			y = np.where(z >= 0, 1, 0)
+			return(y)
+		def backward(self, dy):
+			return(np.zeros_like(dy))
 	class Linear():
 		''' The Linear activation function '''
 		def forward(self, z):
-			self.y = z
-			return(self.y)
-		def backward(self, DL_DY):
-			DA_Dz = DL_DY.copy()
-			return(DA_Dz)
+			y = z
+			return(y)
+		def backward(self, dy):
+			dz = dy.copy()
+			return(dz)
 	class Sigmoid():
 		''' The Sigmoid activation function '''
 		def forward(self, z):
 			self.y = 1 / (1 + np.exp(-z))
 			return(self.y)
-		def backward(self, DA_Dz):
-			DS_Dz = DA_Dz * (1 - self.y) * self.y
-			return(DS_Dz)
+		def backward(self, dy):
+			dz = dy * (1 - self.y) * self.y
+			return(dz)
 	class ReLU():
 		''' The ReLU activation function '''
 		def forward(self, z):
 			self.z = z
 			y = np.maximum(0, self.z)
 			return(y)
-		def backward(self, DL_DY):
-			DA_Dz = DL_DY.copy()
-			DA_Dz[self.z <= 0] = 0
-			return(DA_Dz)
+		def backward(self, dy):
+			dz = dy.copy()
+			dz[self.z <= 0] = 0
+			return(dz)
 	class LeakyReLU():
 		''' The LeakyReLU activation function '''
 		def __init__(self, alpha=0.01):
@@ -81,38 +128,80 @@ class PyNN():
 			self.z = z
 			y = np.where(z > 0, z, self.alpha * z)
 			return(y)
-		def backward(self, DL_DY):
-			DA_Dz = DL_DY.copy()
-			DA_Dz[self.z <= 0] *= self.alpha
-			return(DA_Dz)
+		def backward(self, dy):
+			dz = dy.copy()
+			dz[self.z <= 0] *= self.alpha
+			return(dz)
 	class TanH():
 		''' The Hyperbolic Tangent (TanH) activation function '''
 		def forward(self, z):
 			self.y = np.tanh(z)
 			return(self.y)
-		def backward(self, DL_DY):
-			DT_Dz = (1 - self.y ** 2)
-			return(DL_DY * DT_Dz)
+		def backward(self, dy):
+			dz = dy * (1 - self.y ** 2)
+			return(dz)
 	class Softmax():
 		''' The Softmax activation function '''
 		def forward(self, z):
 			exp_values = np.exp(z - np.max(z, axis=1, keepdims=True))
 			self.y = exp_values / np.sum(exp_values, axis=1, keepdims=True)
 			return(self.y)
-		def backward(self, DL_DY):
-			DS_Dz = np.empty_like(DL_DY)
-			for i, (y, dy) in enumerate(zip(self.y, DL_DY)):
+		def backward(self, dY):
+			dz = np.empty_like(dY)
+			for i, (y, dy) in enumerate(zip(self.y, dY)):
 				y = y.reshape(-1, 1)
 				jacobian_matrix = np.diagflat(y) - np.dot(y, y.T)
-				DS_Dz[i] = np.dot(jacobian_matrix, dy)
-			return(DS_Dz)
+				dz[i] = np.dot(jacobian_matrix, dy)
+			return(dz)
+	#---------- Loss Functions ---------- #
+	class MSE_Loss():
+		''' The Mean Squared Error loss '''
+		def forward(self, y_true, y_pred):
+			loss = (y_true - y_pred)**2
+			return(loss)
+		def backward(self, y_true, y_pred):
+			dy = (-2 * (y_true - y_pred) / len(y_pred[0])) / len(y_pred)
+			return(dy)
+	class MAE_Loss():
+		''' The Mean Absolute Error loss '''
+		def forward(self, y_true, y_pred):
+			loss = np.abs(y_true - y_pred)
+			return(loss)
+		def backward(self, y_true, y_pred):
+			dy = (np.sign(y_true - y_pred) / len(y_pred[0])) / len(y_pred)
+			return(dy)
+	class BCE_Loss():
+		''' The Binary Cross-Entropy loss function '''
+		def forward(self, y_true, y_pred):
+			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
+			loss = -(y_true*np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+			return(loss)
+		def backward(self, y_true,  y_pred):
+			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
+			dy=-(y_true/y_pred-(1-y_true)/(1-y_pred))/len(y_pred[0])/len(y_pred)
+			return(dy)
+	class CCE_Loss():
+		''' The Categorical Cross-Entropy loss '''
+		def forward(self, y_true, y_pred):
+			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
+			if len(y_true.shape) == 1:
+				y_pred_vector = y_pred[range(len(y_pred)), y_true]
+			elif len(y_true.shape) == 2:
+				y_pred_vector = np.sum(y_pred * y_true, axis=1)
+			loss = -np.log(y_pred_vector)
+			return(loss)
+		def backward(self, y_true,  y_pred):
+			if len(y_true.shape) == 1:
+				y_true = np.eye(len(y_pred[0]))[y_true]
+			dy = (-y_true / y_pred) / len(y_pred)
+			return(dy)
 	#---------- Accuracy Functions ---------- #
 	class Regression_Accuracy():
 		''' Accuracy for regression models '''
 		def calc(self, y_true, y_pred):
-			accuracy_precision = np.std(y_true) / 250
+			precision = np.std(y_true) / 250
 			predictions = y_pred
-			accuracy = np.mean(np.absolute(predictions-y_true) < accuracy_precision)
+			accuracy = np.mean(np.absolute(predictions-y_true) < precision)
 			return(accuracy)
 	class Binary_Accuracy():
 		''' Accuracy for binary classification models '''
@@ -126,54 +215,12 @@ class PyNN():
 			predictions = np.argmax(y_pred, axis=1)
 			accuracy = np.mean(predictions == y_true)
 			return(accuracy)
-	#---------- Loss Functions ---------- #
-	class BCE_Loss():
-		''' The Binary Cross-Entropy loss function '''
-		def forward(self, y_true, y_pred):
-			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
-			loss = -(y_true*np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
-			return(loss)
-		def backward(self, y_true,  y_pred):
-			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
-			DL_DY = (y_pred - y_true) / (y_pred * (1 - y_pred)) / len(y_pred)
-			return(DL_DY)
-	class CCE_Loss():
-		''' The Categorical Cross-Entropy loss '''
-		def forward(self, y_true, y_pred):
-			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
-			if len(y_true.shape) == 1:
-				y_pred_vector = y_pred[range(len(y_pred)), y_true]
-			elif len(y_true.shape) == 2:
-				y_pred_vector = np.sum(y_pred_clipped * y_true, axis=1)
-			loss = -np.log(y_pred_vector)
-			return(loss)
-		def backward(self, y_true,  y_pred):
-			if len(y_true.shape) == 1:
-				y_true = np.eye(len(y_pred[0]))[y_true]
-			DL_DY = (-y_true / y_pred) / len(y_pred)
-			return(DL_DY)
-	class MSE_Loss():
-		''' The Mean Squared Error loss '''
-		def forward(self, y_true, y_pred):
-			loss = (y_true - y_pred)**2
-			return(loss)
-		def backward(self, y_true, y_pred):
-			DL_DY = (-2 * (y_true - y_pred) / len(y_pred[0])) / len(y_pred)
-			return(DL_DY)
-	class MAE_Loss():
-		''' The Mean Absolute Error loss '''
-		def forward(self, y_true, y_pred):
-			loss = np.abs(y_true - y_pred)
-			return(loss)
-		def backward(self, y_true, y_pred):
-			DL_DY = (np.sign(y_true - y_pred) / len(y_pred[0])) / len(y_pred)
-			return(DL_DY)
 	#---------- Optimisers ---------- #
 	def SGD(self, lr, decay, iters, layer):
 		''' The Stochastic Gradient Descent optimiser '''
 		lr = lr * (1. / (1. + decay * iters))
-		layer.w -= lr * layer.dL_dw
-		layer.b -= lr * layer.dL_db
+		layer.w += -lr * layer.dw
+		layer.b += -lr * layer.db
 	def Adagrad(self, lr, decay, iters, e, layer):
 		''' The Adagrad optimiser '''
 		lr = lr * (1. / (1. + decay * iters))
@@ -182,10 +229,10 @@ class PyNN():
 			w0 = np.zeros_like(layer.w)
 			b0 = np.zeros_like(layer.b)
 			self.cache[layer] = {'w':w0, 'b':b0}
-		self.cache[layer]['w'] += layer.dL_dw ** 2
-		self.cache[layer]['b'] += layer.dL_db ** 2
-		layer.w -= (lr / (np.sqrt(self.cache[layer]['w']) + e)) * layer.dL_dw
-		layer.b -= (lr / (np.sqrt(self.cache[layer]['b']) + e)) * layer.dL_db
+		self.cache[layer]['w'] += layer.dw ** 2
+		self.cache[layer]['b'] += layer.db ** 2
+		layer.w -= (lr / (np.sqrt(self.cache[layer]['w']) + e)) * layer.dw
+		layer.b -= (lr / (np.sqrt(self.cache[layer]['b']) + e)) * layer.db
 	def RMSprop(self, lr, decay, iters, beta, e, layer):
 		''' The RMSprop optimiser '''
 		lr = lr * (1. / (1. + decay * iters))
@@ -194,93 +241,25 @@ class PyNN():
 			w0 = np.zeros_like(layer.w)
 			b0 = np.zeros_like(layer.b)
 			self.cache[layer] = {'w':w0, 'b':b0}
-		w_cache = beta * self.cache[layer]['w'] + (1 - beta) * layer.dL_dw ** 2
-		b_cache = beta * self.cache[layer]['b'] + (1 - beta) * layer.dL_db ** 2
+		w_cache = beta * self.cache[layer]['w'] + (1 - beta) * layer.dw ** 2
+		b_cache = beta * self.cache[layer]['b'] + (1 - beta) * layer.db ** 2
 		self.cache[layer]['w'] = w_cache
 		self.cache[layer]['b'] = b_cache
-		layer.w -= (lr / (np.sqrt(self.cache[layer]['w']) + e)) * layer.dL_dw
-		layer.b -= (lr / (np.sqrt(self.cache[layer]['b']) + e)) * layer.dL_db
+		layer.w -= (lr / (np.sqrt(self.cache[layer]['w']) + e)) * layer.dw
+		layer.b -= (lr / (np.sqrt(self.cache[layer]['b']) + e)) * layer.db
 	def Adam(self, lr, decay, iters, beta1, beta2, e, layer):
 		''' The Adam Gradient Descent optimiser '''
 		lr = lr * (1. / (1. + decay * iters))
-		layer.w_m = beta1 * layer.w_m + (1 - beta1) * layer.dL_dw
-		layer.b_m = beta1 * layer.b_m + (1 - beta1) * layer.dL_db
+		layer.w_m = beta1 * layer.w_m + (1 - beta1) * layer.dw
+		layer.b_m = beta1 * layer.b_m + (1 - beta1) * layer.db
 		w_m_c = layer.w_m / (1 - beta1 ** (iters + 1))
 		b_m_c = layer.b_m / (1 - beta1 ** (iters + 1))
-		layer.w_c = beta2 * layer.w_c + (1 - beta2) * layer.dL_dw**2
-		layer.b_c = beta2 * layer.b_c + (1 - beta2) * layer.dL_db**2
+		layer.w_c = beta2 * layer.w_c + (1 - beta2) * layer.dw**2
+		layer.b_c = beta2 * layer.b_c + (1 - beta2) * layer.db**2
 		w_c_c = layer.w_c / (1 - beta2 ** (iters + 1))
 		b_c_c = layer.b_c / (1 - beta2 ** (iters + 1))
 		layer.w -= lr * w_m_c / (np.sqrt(w_c_c) + e)
 		layer.b -= lr * b_m_c / (np.sqrt(b_c_c) + e)
-
-
-
-
-
-
-	#---------- Regularisation ----------#
-	class Dropout():
-		''' The dropout regularisation layer '''
-		def __init__(self, p=0.25):
-			self.p = p
-		def forward(self, y, train=True):
-			if train:
-				self.mask = np.random.binomial(1, 1-self.p, y.shape)/(1-self.p)
-				y *= self.mask
-			return(y)
-		def backward(self, DA_Dz):
-			DA_Dz *= self.mask
-			return(DA_Dz)
-	class BatchNorm():
-		''' The Batch Normalisation regularisation layer '''
-		def __init__(self, g=1.0, b=0.0, e=1e-7):
-			self.w = g # replace g with w for optimiser
-			self.b = b
-			self.e = e
-		def forward(self, z):
-			self.z = z
-			self.mean = np.mean(z, axis=0, keepdims=True)
-			self.var = np.var(z, axis=0, keepdims=True)
-			self.z_norm = (self.z - self.mean) / np.sqrt(self.var + self.e)
-			z_new = self.w * self.z_norm + self.b
-			return(z_new)
-		def backward(self, DA_Dz):
-			m = self.z.shape[0]
-			self.dL_dw = np.sum(DA_Dz * self.z_norm, axis=0, keepdims=True) # dg
-			self.dL_db = np.sum(DA_Dz, axis=0, keepdims=True) # db
-			self.dB_dz = (self.w * (1./np.sqrt(self.var + self.e)) / m) * (m * DA_Dz - np.sum(DA_Dz, axis=0)
-			- (1./np.sqrt(self.var + self.e))**2 * (self.z - self.mean) * np.sum(DA_Dz*(self.z - self.mean), axis=0))
-			return(self.dB_dz)
-
-
-
-	class L1L2():
-		''' L1 + L2 regularisation '''
-		def forward(self, w, b, l1w, l1b, l2w, l2b):
-			self.w = w
-			self.b = b
-			self.L1w = l1w * np.sum(np.abs(w))
-			self.L1b = l1b * np.sum(np.abs(b))
-			self.L2w = l2w * np.sum(w**2)
-			self.L2b = l2b * np.sum(b**2)
-			L1L2 = self.L1w + self.L1b + self.L2w + self.L2b
-			return(L1L2)
-		def backward(self, dL_dw, dL_db):
-			dL1_dw = np.ones_like(w)
-			dL1_dw[w < 0] = -1
-			dL_dw += self.l1w * dL1_dw
-			dL1_db = np.ones_like(b)
-			dL1_db[b < 0] = -1
-			dL_db += self.l1b * dL1_db
-			dL_dw += 2 * self.l2w * w
-			dL_db += 2 * self.l2b * b
-			return(dL_dw, dL_db)
-
-
-
-
-
 
 
 
@@ -295,10 +274,8 @@ class PyNN():
 		def __init__(self, inputs=1, outputs=1,
 					alg='he uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5):
 			''' Initialise parameters '''
-			self.Parameters(inputs, outputs, alg=alg, sd=sd, a=a, b=b)
-			self.dL_dw, self.dL_db, self.dL_dx = None, None, None
-		def Parameters(self, inputs=1, outputs=1,
-					alg='he uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5):
+			self.Parameters(inputs, outputs, alg, mean, sd, a, b)
+		def Parameters(self, inputs, outputs, alg, mean, sd, a, b):
 			''' Parameter initialisation function '''
 			if alg == 'zeros':
 				w = np.zeros((inputs, outputs))
@@ -334,22 +311,11 @@ class PyNN():
 			self.x = x
 			z = np.dot(self.x, self.w) + self.b
 			return(z)
-		def backward(self, DA_Dz):
-			self.dL_dw = np.dot(self.x.T, DA_Dz)
-			self.dL_db = np.sum(DA_Dz, axis=0, keepdims=True)
-			self.dL_dx = np.dot(DA_Dz, self.w.T)
-			return(self.dL_dx)
-
-
-
-
-
-
-
-
-
-
-
+		def backward(self, dz):
+			self.dw = np.dot(self.x.T, dz)
+			self.db = np.sum(dz, axis=0, keepdims=True)
+			self.dx = np.dot(dz, self.w.T)
+			return(self.dx)
 
 
 
@@ -364,66 +330,42 @@ class PyNN():
 			X_train=None, Y_train=None,
 			X_valid=None, Y_valid=None,
 			X_tests=None, Y_tests=None,
+			batch_size = None,
 			loss='BCE',
-			optimiser='SGD', lr=0.1, decay=5e-7, beta1=0.9, beta2=0.999, e=1e-7,
 			accuracy='BINARY',
-			batch_size=None,
-			epochs=1,
-			verbose=1):
-		''' Train the network, forward pass followed by backward pass '''
+			optimiser='SGD', lr=0.1, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7,
+			epochs=1):
+		''' Train the network '''
 		steps = 0
-		X_train_batch = X_train
-		Y_train_batch = Y_train
-		if   loss.lower() == 'bce': loss_fn = self.BCE_Loss()
-		elif loss.lower() == 'cce': loss_fn = self.CCE_Loss()
-		elif loss.lower() == 'mse': loss_fn = self.MSE_Loss()
+		if   loss.lower() == 'mse': loss_fn = self.MSE_Loss()
 		elif loss.lower() == 'mae': loss_fn = self.MAE_Loss()
+		elif loss.lower() == 'bce': loss_fn = self.BCE_Loss()
+		elif loss.lower() == 'cce': loss_fn = self.CCE_Loss()
 		if   accuracy.lower() == 'regression': acc = self.Regression_Accuracy()
 		elif accuracy.lower() == 'binary':     acc = self.Binary_Accuracy()
 		elif accuracy.lower() == 'categorical':acc = self.Categorical_Accuracy()
 		if batch_size is not None: steps = X_train.shape[0] // batch_size
-
-#		if verbose != 0:
-#			V = self.verbosity()
-#			V.start(X_train, X_valid, X_tests)
-
-#		train_examples = X_train.shape[0]
-#		valid_examples = X_valid.shape[0]
-#		tests_examples = X_tests.shape[0]
-#		s1 = f'Train on {train_examples} examples'
-#		s2 = f'validate on {valid_examples} examples'
-#		s3 = f'test on {tests_examples} examples'
-#		s4 = f'training batches {steps}'
-#
-#		print(s1, s2, s3, s4)
-
-
-
-
-
 		for epoch in range(epochs):
-			############# EARLY STOPPING HERE #################
+			# Shuffle training datatset
+			X_train, Y_train = self.shuffle_data(X_train, Y_train)
 			for step in range(steps + 1):
+				# Batch segmentation
+				X_train_batch = X_train
+				Y_train_batch = Y_train
 				if batch_size is not None:
-					X_train_batch = X[step*batch_size:(step+1)*batch_size]
-					Y_train_batch = Y[step*batch_size:(step+1)*batch_size]
+					X_train_batch = X[step * batch_size:(step + 1) * batch_size]
+					Y_train_batch = Y[step * batch_size:(step + 1) * batch_size]
 				# Forward propagation
-				output = X_train_batch
 				y_true = Y_train_batch
-				for layer in self.layers:
-					output = layer.forward(output)
-				y_pred = output
+				y_pred = self.forward(X_train_batch, Y_train_batch)
 				cost_train = self.cost(loss_fn.forward(y_true, y_pred))
-				# Accuracy calculation
 				accuracy_train = acc.calc(y_true, y_pred)
 				# Backpropagation
-				grad = loss_fn.backward(y_true, y_pred)
-				grad = self.layers[-1].backward(grad)
-				for i in range(len(self.layers) - 2, -1, -1):
-					grad = self.layers[i].backward(grad)
+				dy = loss_fn.backward(y_true, y_pred)
+				dx = self.backward(dy)
 				# Gradient descent
 				for layer in self.layers:
-					if isinstance(layer, (self.Dense, self.BatchNorm)):
+					if isinstance(layer, (self.Dense)):
 						if optimiser.lower() == 'sgd':
 							self.SGD(lr, decay, epoch, layer)
 						elif optimiser.lower() == 'adagrad':
@@ -432,102 +374,30 @@ class PyNN():
 							self.RMSprop(lr, decay, epoch, beta1, e, layer)
 						elif optimiser.lower() == 'adam':
 							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
-
-				print(epoch, cost_train, accuracy_train)
-#			if verbose == 1:
-#				print(f'Epoch: {epoch+1:,}/{epochs:,} | Cost: {cost_train:.5f} | Accuracy: {accuracy_train:.5f}')
-
-#				if verbose == 2:
-#					self.verbosity('train', epoch, step, cost_train, accuracy_train)
-#			if verbose == 1:
-#				self.verbosity('train', epoch, step, cost_train, accuracy_train)
+				print('train', cost_train, accuracy_train)
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
-				output = X_valid
 				y_true = Y_valid
-				for layer in self.layers: output = layer.forward(output)
-				y_pred = output
-				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
-				accuracy_valid = acc.calc(y_true, y_pred)
-#				if verbose == 1 or verbose == 2:
-#					self.verbosity('validation', epoch, step, cost_valid, accuracy_valid)
+				y_pred = self.forward(X_valid, Y_valid)
+				cost_train = self.cost(loss_fn.forward(y_true, y_pred))
+				accuracy_train = acc.calc(y_true, y_pred)
+				print('valid', cost_train, accuracy_train)
+#			if self.EarlyStopping(): break
 		# Evaluate test set
 		if X_tests is not None and Y_tests is not None:
-			output = X_tests
 			y_true = Y_tests
-			for layer in self.layers: output = layer.forward(output)
-			y_pred = output
-			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
-			accuracy_tests = acc.calc(y_true, y_pred)
+			y_pred = self.forward(X_tests, Y_tests)
+			cost_train = self.cost(loss_fn.forward(y_true, y_pred))
+			accuracy_train = acc.calc(y_true, y_pred)
+			print('tests', cost_train, accuracy_train)
 
 
-#			if verbose == 1 or verbose == 2:
-#				self.verbosity('test', epoch, step, cost_tests, accuracy_tests)
-
-
-
-
-# Add early stopping
-# Regularisation
-
-
-#	class verbosity():
-#		''' Control level of information printout during training '''
-#		def start(self, train, valid, tests):
-#			if isinstance(train, np.ndarray): train = train.shape[0]
-#			if isinstance(valid, np.ndarray): valid = valid.shape[0]
-#			if isinstance(tests, np.ndarray): tests = tests.shape[0]
-#			R = '\33[31m'
-#			B = '\33[34m'
-#			G = '\33[32m'
-#			O = '\33[33m'
-#			g = '\33[90m'
-#			off = '\033[39m'
-#
-#			s1 = f'Train on {O}{train}{off} examples'
-#			s2 = f'validate on {O}{valid}{off} examples'
-#			s3 = f'test on {O}{tests}{off} examples'
-#			s4 = f'training batches {steps}'
-#
-#			print(s1, s2, s3)
-
-	
-#		def one(self, sets, E, S, C, A):
-#		train_examples = X_train.shape[0]
-#		valid_examples = X_valid.shape[0]
-#		tests_examples = X_tests.shape[0]
-#		s1 = f'Train on {train_examples} examples'
-#		s2 = f'validate on {valid_examples} examples'
-#		s3 = f'test on {tests_examples} examples'
-#		s4 = f'training batches {steps}'
-#
-#		print(s1, s2, s3, s4)
-
-
-#		if sets.lower() == 'train':
-#			s1 = f'Set: Training |'
-#			s2 = f'Epoch: {E:,} | Batch: {S:,} |'
-#			s3 = f'Cost: {C:.5f} | Accuracy: {A:.5f}'
-#			string = s1 + s2 + s3
-#		elif sets.lower() == 'validation':
-#			s1 = f'Set: Validation | '
-#			s2 = f'Epoch: {E:,} | '
-#			s3 = f'Cost: {C:.5f} | Accuracy: {A:.5f}'
-#			string = s1 + s2 + s3
-#		elif sets.lower() == 'test':
-#			string = f'Set: Test | Cost: {C:.5f} | Accuracy: {A:.5f}'
-#		print(string)
-
-
-
-
-
-
-
-
-
-import sklearn
-
+'''
+[ ] Early Stopping
+[ ] Verbosity
+[ ] Other utilities
+[ ] Regularisation
+'''
 
 #----- Import Data -----#
 def spiral_data(samples, classes):
@@ -540,28 +410,21 @@ def spiral_data(samples, classes):
 		X[ix] = np.c_[r*np.sin(t*2.5), r*np.cos(t*2.5)]
 		Y[ix] = class_n
 	return X, Y
+def sine_data(samples=1000):
+    X = np.arange(samples).reshape(-1, 1) / samples
+    y = np.sin(2 * np.pi * X).reshape(-1, 1)
+    return X, y
 
-X, Y = spiral_data(samples=140, classes=2)
-Y = Y.reshape(-1, 1)
-
-X_train, X_valid, Y_train, Y_valid = sklearn.model_selection.train_test_split(X, Y, train_size=200)
-X_valid, X_tests, Y_valid, Y_tests = sklearn.model_selection.train_test_split(X_valid, Y_valid, train_size=40)
-
-
+#X, Y = spiral_data(samples=140, classes=2)
+#Y = Y.reshape(-1, 1)
+X, Y = sine_data()
 
 model = PyNN()
-model.add(model.Dense(2, 64))
-model.add(model.BatchNorm())
-model.add(model.ReLU())
-model.add(model.Dense(64, 1))
+model.add(model.Dense(1, 64))
 model.add(model.Sigmoid())
+model.add(model.Dense(64, 64))
+model.add(model.Sigmoid())
+model.add(model.Dense(64, 1))
+model.add(model.Linear())
 
-model.train(
-		X_train, 
-		Y_train, 
-#		X_valid, 
-#		Y_valid, 
-#		X_tests, 
-#		Y_tests, 
-#		batch_size=16, 
-		epochs=200, verbose=1)
+model.train(X, Y, loss='MSE', accuracy='regression', lr=0.05, epochs=10)
