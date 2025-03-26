@@ -31,56 +31,17 @@ class PyNN():
 		for i in range(len(self.layers) - 2, -1, -1):
 			dx = self.layers[i].backward(dx)
 		return(dx)
-
-
-
-
-
-
-
 	class EarlyStopping():
-		def __init__(self, patience=5, min_delta=1e-4, min_val_loss=None, min_grad=1e-6):
-			self.patience = patience
+		''' Early stopping function tracking training loss stagnation '''
+		def __init__(self, min_delta=1e-4):
 			self.min_delta = min_delta
-			self.min_val_loss = min_val_loss
-			self.min_grad = min_grad
-			self.max_epochs = max_epochs
-			self.best_val_loss = float('inf')
-			self.counter = 0
-			self.epoch = 0
-		def check_stop(self, val_loss, val_acc, train_loss, gradients):
-			self.epoch += 1
-			if val_loss < self.best_val_loss - self.min_delta:
-				self.best_val_loss = val_loss
-				self.counter = 0
-			else:
-				self.counter += 1
-				if self.counter >= self.patience:
-					print('Stopping early: Validation loss plateaued')
-					return(True)
-			if self.epoch > 1 and val_acc < self.best_val_loss:
-				print('Stopping early: Validation accuracy dropped')
-				return(True)
-			if self.min_val_loss is not None and val_loss <= self.min_val_loss:
-				print('Stopping early: Minimum validation loss reached')
-				return(True)
-			if all(abs(g) < self.min_grad for g in gradients):
-				print('Stopping early: Gradient updates too small')
-				return(True)
-			if self.epoch > 1 and abs(train_loss - self.best_val_loss) < self.min_delta:
+			self.best_loss = float('inf')
+		def check(self, epoch, loss):
+			if loss < self.best_loss - self.min_delta: self.best_loss = loss
+			if epoch > 1 and abs(loss - self.best_loss) < self.min_delta:
 				print('Stopping early: Training loss plateaued')
 				return(True)
 			return(False)
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -260,7 +221,7 @@ class PyNN():
 		b_c_c = layer.b_c / (1 - beta2 ** (iters + 1))
 		layer.w -= lr * w_m_c / (np.sqrt(w_c_c) + e)
 		layer.b -= lr * b_m_c / (np.sqrt(b_c_c) + e)
-
+	#---------- Regularisation ----------#
 
 
 
@@ -316,15 +277,6 @@ class PyNN():
 			self.db = np.sum(dz, axis=0, keepdims=True)
 			self.dx = np.dot(dz, self.w.T)
 			return(self.dx)
-
-
-
-
-
-
-
-
-
 	#---------- Training ---------- #
 	def train(self,
 			X_train=None, Y_train=None,
@@ -334,6 +286,7 @@ class PyNN():
 			loss='BCE',
 			accuracy='BINARY',
 			optimiser='SGD', lr=0.1, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7,
+			early_stop=False,
 			epochs=1):
 		''' Train the network '''
 		steps = 0
@@ -345,6 +298,7 @@ class PyNN():
 		elif accuracy.lower() == 'binary':     acc = self.Binary_Accuracy()
 		elif accuracy.lower() == 'categorical':acc = self.Categorical_Accuracy()
 		if batch_size is not None: steps = X_train.shape[0] // batch_size
+		if early_stop: STOP = self.EarlyStopping()
 		for epoch in range(epochs):
 			# Shuffle training datatset
 			X_train, Y_train = self.shuffle_data(X_train, Y_train)
@@ -374,49 +328,33 @@ class PyNN():
 							self.RMSprop(lr, decay, epoch, beta1, e, layer)
 						elif optimiser.lower() == 'adam':
 							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
-				print('train', cost_train, accuracy_train)
+				print(epoch+1, 'train', cost_train, accuracy_train) ##########
+			if early_stop and STOP.check(epoch, cost_train): break
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
 				y_true = Y_valid
 				y_pred = self.forward(X_valid, Y_valid)
-				cost_train = self.cost(loss_fn.forward(y_true, y_pred))
-				accuracy_train = acc.calc(y_true, y_pred)
-				print('valid', cost_train, accuracy_train)
-#			if self.EarlyStopping(): break
+				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
+				accuracy_valid = acc.calc(y_true, y_pred)
 		# Evaluate test set
 		if X_tests is not None and Y_tests is not None:
 			y_true = Y_tests
 			y_pred = self.forward(X_tests, Y_tests)
-			cost_train = self.cost(loss_fn.forward(y_true, y_pred))
-			accuracy_train = acc.calc(y_true, y_pred)
-			print('tests', cost_train, accuracy_train)
+			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
+			accuracy_tests = acc.calc(y_true, y_pred)
 
 
 '''
-[ ] Early Stopping
-[ ] Verbosity
 [ ] Other utilities
+[ ] Verbosity
 [ ] Regularisation
 '''
 
 #----- Import Data -----#
-def spiral_data(samples, classes):
-	X = np.zeros((samples*classes, 2))
-	Y = np.zeros(samples*classes, dtype='uint8')
-	for class_n in range(classes):
-		ix = range(samples*class_n, samples*(class_n+1))
-		r = np.linspace(0.0, 1, samples)
-		t = np.linspace(class_n*4, (class_n+1)*4, samples) + np.random.randn(samples)*0.2
-		X[ix] = np.c_[r*np.sin(t*2.5), r*np.cos(t*2.5)]
-		Y[ix] = class_n
-	return X, Y
 def sine_data(samples=1000):
-    X = np.arange(samples).reshape(-1, 1) / samples
-    y = np.sin(2 * np.pi * X).reshape(-1, 1)
-    return X, y
-
-#X, Y = spiral_data(samples=140, classes=2)
-#Y = Y.reshape(-1, 1)
+	X = np.arange(samples).reshape(-1, 1) / samples
+	y = np.sin(2 * np.pi * X).reshape(-1, 1)
+	return(X, y)
 X, Y = sine_data()
 
 model = PyNN()
