@@ -1,5 +1,6 @@
 import math
 import pickle
+#import cupy as cp
 import numpy as np
 
 np.random.seed(42)
@@ -8,10 +9,18 @@ class PyNN():
 	''' Lightweight NumPy-based neural network library '''
 	#---------- Utilities ---------- #
 	def __init__(self):
-		''' Initialise the class with the following objects '''
+		''' Initialise the class with the following objects and detect GPU '''
 		self.layers = []
+		try:
+			cp.cuda.Device(0).compute_capability
+			self.chip = 'GPU'
+		except:
+			self.chip = 'CPU'
+		print(f'[+] Running on {self.chip}')
 	def add(self, layer):
 		''' Add a layer to the network '''
+		if isinstance(layer, self.Dense):
+			layer.chip = self.chip
 		self.layers.append(layer)
 	def shuffle_data(self, X, Y):
 		''' Shuffle X and Y in unison '''
@@ -40,7 +49,7 @@ class PyNN():
 		def check(self, epoch, loss):
 			if loss < self.best_loss - self.min_delta: self.best_loss = loss
 			if epoch > 1 and abs(loss - self.best_loss) < self.min_delta:
-				print('Stopping early: Training loss plateaued')
+				print('[+] Stopping early: Training loss plateaued')
 				return(True)
 			return(False)
 	def show(self):
@@ -73,18 +82,6 @@ class PyNN():
 		''' Flattens a layer to 1D '''
 		X = X.flatten()
 		return(X)
-
-
-
-
-
-#	def GPU(self):
-#	''' Use GPU instead of CPU '''
-
-
-
-
-
 	#---------- Activation Functions ----------#
 	class Step():
 		''' The Step activation function (for binary classification) '''
@@ -362,12 +359,18 @@ class PyNN():
 			self.b_c = np.zeros_like(b)
 		def forward(self, x):
 			self.x = x
-			z = np.dot(self.x, self.w) + self.b
+			if   self.chip == 'CPU': z = np.dot(self.x, self.w) + self.b
+			elif self.chip == 'GPU': z = cp.dot(self.x, self.w) + self.b
 			return(z)
 		def backward(self, dz):
-			self.dw = np.dot(self.x.T, dz)
-			self.db = np.sum(dz, axis=0, keepdims=True)
-			self.dx = np.dot(dz, self.w.T)
+			if   self.chip == 'CPU':
+				self.dw = np.dot(self.x.T, dz)
+				self.db = np.sum(dz, axis=0, keepdims=True)
+				self.dx = np.dot(dz, self.w.T)
+			elif self.chip == 'GPU':
+				self.dw = cp.dot(self.x.T, dz)
+				self.db = cp.sum(dz, axis=0, keepdims=True)
+				self.dx = cp.dot(dz, self.w.T)
 			return(self.dx)
 	#---------- Training ---------- #
 	def train(self,
@@ -421,6 +424,7 @@ class PyNN():
 						elif optimiser.lower() == 'adam':
 							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
 			if early_stop and STOP.check(epoch, cost_train): break
+			print(cost_train)
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
 				y_true = Y_valid
