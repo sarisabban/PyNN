@@ -69,6 +69,13 @@ class PyNN():
 		''' Perform a prediction '''
 		y_pred = self.forward(X)
 		return(y_pred)
+	def flatten(self, X):
+		''' Flattens a layer to 1D '''
+		X = X.flatten()
+		return(X)
+
+
+
 
 
 #	def GPU(self):
@@ -430,7 +437,6 @@ class PyNN():
 
 '''
 [ ] Other utilities
-[ ] general multi dimension tensor shapes
 [ ] Verbosity
 [ ] Regularisation
 '''
@@ -441,7 +447,6 @@ def sine_data(samples=1000):
 	y = np.sin(2 * np.pi * X).reshape(-1, 1)
 	return(X, y)
 X, Y = sine_data()
-
 
 model = PyNN()
 model.add(model.Dense(1, 64))
