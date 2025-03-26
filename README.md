@@ -22,6 +22,7 @@ pip install git+https://github.com/sarisabban/PyNN
 
 ## Usage
 ```py
+import sklearn
 from pynn import *
 
 # Generate some data
@@ -31,12 +32,17 @@ def sine_data(samples=1000):
 	return(X, y)
 X, Y = sine_data()
 
+X_train, X_valid, Y_train, Y_valid = sklearn.model_selection.train_test_split(X, Y, train_size=600)
+X_valid, X_tests, Y_valid, Y_tests = sklearn.model_selection.train_test_split(X, Y, train_size=200)
+
 # Define the network architecture
 model = PyNN()
 model.add(model.Dense(1, 64))
-model.add(model.Sigmoid())
+model.add(model.BatchNorm())
+model.add(model.ReLU())
 model.add(model.Dense(64, 64))
 model.add(model.Sigmoid())
+model.add(model.Dropout())
 model.add(model.Dense(64, 1))
 model.add(model.Linear())
 
@@ -44,23 +50,22 @@ model.add(model.Linear())
 model.show()
 
 # Train the model
-model.train(
-			X_train=None, Y_train=None,
-			X_valid=None, Y_valid=None,
-			X_tests=None, Y_tests=None,
-			batch_size = None,
+model.train(X_train, Y_train,
+			X_valid, Y_valid,
+			X_tests, Y_tests,
+			batch_size=32,
 			loss='MSE',
 			accuracy='regression',
-			optimiser='SGD', lr=0.1, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7,
+			optimiser='SGD', lr=0.05, decay=0.2, beta1=0.9, beta2=0.999, e=1e-7,
 			early_stop=False,
-			epochs=100)
-)
+			epochs=100,
+			verbose=1)
 
 # Save the model
-model.save()
+model.save('model.pkl')
 
 # Load the model
-model.load()
+model.load('model.pkl')
 
 # Perform a prediction
 prediction = model.predict(0.299)

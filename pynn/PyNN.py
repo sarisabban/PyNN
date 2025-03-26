@@ -377,7 +377,7 @@ class PyNN():
 			X_train=None, Y_train=None,
 			X_valid=None, Y_valid=None,
 			X_tests=None, Y_tests=None,
-			batch_size = None,
+			batch_size=None,
 			loss='BCE',
 			accuracy='BINARY',
 			optimiser='SGD', lr=0.1, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7,
@@ -397,7 +397,6 @@ class PyNN():
 		for epoch in range(epochs):
 			# Shuffle training datatset
 			X_train, Y_train = self.shuffle_data(X_train, Y_train)
-			print(X_train[0])
 			for step in range(steps + 1):
 				# Batch segmentation
 				X_train_batch = X_train
@@ -425,7 +424,6 @@ class PyNN():
 						elif optimiser.lower() == 'adam':
 							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
 			if early_stop and STOP.check(epoch, cost_train): break
-			print(cost_train)
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
 				y_true = Y_valid
