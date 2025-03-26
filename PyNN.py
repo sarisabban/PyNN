@@ -20,7 +20,7 @@ class PyNN():
 	def cost(self, loss):
 		''' The cost function '''
 		return(np.mean(loss))
-	def forward(self, X, Y):
+	def forward(self, X):
 		''' Forward propagation '''
 		for layer in self.layers:
 			X = layer.forward(X)
@@ -57,9 +57,6 @@ class PyNN():
 				shape, params = '', ''
 			print(f'{name:<25}{str(shape):<25}{params}')
 		print('-'*30 + f'\nTotal Parameters: {total_params:,}')
-
-
-
 	def save(self, path='./model'):
 		''' Save model '''
 		with open(f'{path}.pkl', 'wb') as f:
@@ -68,13 +65,12 @@ class PyNN():
 		''' Load model '''
 		with open(f'{path}.pkl', 'rb') as f:
 			self.layers = pickle.load(f)
+	def predict(self, X):
+		''' Perform a prediction '''
+		y_pred = self.forward(X)
+		return(y_pred)
 
 
-#		with open(path, 'wb') as f:
-#		pickle.dump(self.w, f)
-#	def predict(self):
-#	''' Perform a prediction '''
-#	run training loop without backprop
 #	def GPU(self):
 #	''' Use GPU instead of CPU '''
 
@@ -400,7 +396,7 @@ class PyNN():
 					Y_train_batch = Y[step * batch_size:(step + 1) * batch_size]
 				# Forward propagation
 				y_true = Y_train_batch
-				y_pred = self.forward(X_train_batch, Y_train_batch)
+				y_pred = self.forward(X_train_batch)
 				cost_train = self.cost(loss_fn.forward(y_true, y_pred))
 				accuracy_train = acc.calc(y_true, y_pred)
 				# Backpropagation
@@ -421,13 +417,13 @@ class PyNN():
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
 				y_true = Y_valid
-				y_pred = self.forward(X_valid, Y_valid)
+				y_pred = self.forward(X_valid)
 				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
 				accuracy_valid = acc.calc(y_true, y_pred)
 		# Evaluate test set
 		if X_tests is not None and Y_tests is not None:
 			y_true = Y_tests
-			y_pred = self.forward(X_tests, Y_tests)
+			y_pred = self.forward(X_tests)
 			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
 			accuracy_tests = acc.calc(y_true, y_pred)
 
@@ -446,6 +442,7 @@ def sine_data(samples=1000):
 	return(X, y)
 X, Y = sine_data()
 
+
 model = PyNN()
 model.add(model.Dense(1, 64))
 model.add(model.Sigmoid())
@@ -454,4 +451,4 @@ model.add(model.Sigmoid())
 model.add(model.Dense(64, 1))
 model.add(model.Linear())
 
-#model.train(X, Y, loss='MSE', accuracy='regression', lr=0.05, epochs=10)
+model.train(X, Y, loss='MSE', accuracy='regression', lr=0.05, epochs=10)
