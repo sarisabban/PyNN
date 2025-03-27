@@ -41,6 +41,13 @@ class PyNN():
 		for i in range(len(self.layers) - 2, -1, -1):
 			dx = self.layers[i].backward(dx)
 		return(dx)
+	def predict(self, X):
+		''' Perform a prediction '''
+		for layer in self.layers:
+			if isinstance(layer, (self.Dropout)): pass
+			else: X = layer.forward(X)
+		y_pred = X
+		return(y_pred)
 	class EarlyStopping():
 		''' Early stopping function tracking training loss stagnation '''
 		def __init__(self, min_delta=1e-4):
@@ -74,10 +81,6 @@ class PyNN():
 		''' Load model '''
 		with open(f'{path}.pkl', 'rb') as f:
 			self.layers = pickle.load(f)
-	def predict(self, X):
-		''' Perform a prediction '''
-		y_pred = self.forward(X)
-		return(y_pred)
 	def flatten(self, X):
 		''' Flattens a layer to 1D '''
 		X = X.flatten()
@@ -266,12 +269,9 @@ class PyNN():
 				self.mask = np.random.binomial(1, 1-self.p, y.shape)/(1-self.p)
 				y *= self.mask
 			return(y)
-		def backward(self, dy):
+		def backward(self, dz):
 			dz *= self.mask
 			return(dz)
-
-
-
 	class BatchNorm():
 		''' The Batch Normalisation regularisation layer '''
 		def __init__(self, g=1.0, b=0.0, e=1e-7):
@@ -398,7 +398,7 @@ class PyNN():
 		if early_stop: STOP = self.EarlyStopping()
 		for epoch in range(epochs):
 			# Shuffle training datatset
-#			X_train, Y_train = self.shuffle_data(X_train, Y_train)
+			X_train, Y_train = self.shuffle_data(X_train, Y_train)
 			for step in range(steps + 1):
 				# Batch segmentation
 				X_train_batch = X_train
@@ -430,13 +430,13 @@ class PyNN():
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
 				y_true = Y_valid
-				y_pred = self.forward(X_valid) ##### PREICT
+				y_pred = self.predict(X_valid)
 				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
 				accuracy_valid = acc.calc(y_true, y_pred)
 		# Evaluate test set
 		if X_tests is not None and Y_tests is not None:
 			y_true = Y_tests
-			y_pred = self.forward(X_tests) ###### PREICT
+			y_pred = self.predict(X_tests)
 			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
 			accuracy_tests = acc.calc(y_true, y_pred)
 
@@ -457,7 +457,8 @@ X, Y = sine_data()
 
 model = PyNN()
 model.add(model.Dense(1, 64))
-model.add(model.BatchNorm())
+#model.add(model.BatchNorm())
+model.add(model.Dropout())
 model.add(model.Sigmoid())
 model.add(model.Dense(64, 64))
 model.add(model.Sigmoid())
