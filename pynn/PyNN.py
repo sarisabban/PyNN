@@ -288,44 +288,19 @@ class PyNN():
 		def backward(self, dy):
 			m = self.z.shape[0]
 			self.dw = np.sum(dy * self.z_norm, axis=0, keepdims=True) # dg
-			self.db = np.sum(dy, axis=0, keepdims=True) # db
-			self.dz = (self.w * (1./np.sqrt(self.var + self.e)) / m) * (m * dy - np.sum(dy, axis=0)
-			- (1./np.sqrt(self.var + self.e))**2 * (self.z - self.mean) * np.sum(dy*(self.z - self.mean), axis=0))
+			self.db = np.sum(dy, axis=0, keepdims=True)               # db
+			self.dz = (self.w * (1./np.sqrt(self.var + self.e)) / m) \
+			* (m*dy - np.sum(dy, axis=0) - (1./np.sqrt(self.var + self.e))**2 \
+			* (self.z - self.mean) * np.sum(dy*(self.z - self.mean), axis=0))
 			return(self.dz)
-
-
-#	class L1L2():
-#		''' L1 + L2 regularisation '''
-#		def forward(self, w, b, l1w, l1b, l2w, l2b):
-#			self.w = w
-#			self.b = b
-#			self.L1w = l1w * np.sum(np.abs(w))
-#			self.L1b = l1b * np.sum(np.abs(b))
-#			self.L2w = l2w * np.sum(w**2)
-#			self.L2b = l2b * np.sum(b**2)
-#			L1L2 = self.L1w + self.L1b + self.L2w + self.L2b
-#			return(L1L2)
-#		def backward(self, dL_dw, dL_db):
-#			dL1_dw = np.ones_like(w)
-#			dL1_dw[w < 0] = -1
-#			dL_dw += self.l1w * dL1_dw
-#			dL1_db = np.ones_like(b)
-#			dL1_db[b < 0] = -1
-#			dL_db += self.l1b * dL1_db
-#			dL_dw += 2 * self.l2w * w
-#			dL_db += 2 * self.l2b * b
-#			return(dL_dw, dL_db)
-
-
-
-
-
 	#---------- Layers ----------#
 	class Dense():
 		''' A dense layer '''
 		def __init__(self, inputs=1, outputs=1,
-					alg='he uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5):
+					alg='he uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
+					l1w=0, l1b=0, l2w=0, l2b=0):
 			''' Initialise parameters '''
+			self.l1w, self.l1b, self.l2w, self.l2b = l1w, l1b, l2w, l2b
 			self.Parameters(inputs, outputs, alg, mean, sd, a, b)
 		def Parameters(self, inputs, outputs, alg, mean, sd, a, b):
 			''' Parameter initialisation function '''
@@ -361,18 +336,45 @@ class PyNN():
 			self.b_c = np.zeros_like(b)
 		def forward(self, x):
 			self.x = x
-			if   self.chip == 'CPU': z = np.dot(self.x, self.w) + self.b
-			elif self.chip == 'GPU': z = cp.dot(self.x, self.w) + self.b
+			if self.chip == 'CPU':
+				self.L1w = self.l1w * np.sum(np.abs(self.w))
+				self.L1b = self.l1b * np.sum(np.abs(self.b))
+				self.L2w = self.l2w * np.sum(self.w**2)
+				self.L2b = self.l2b * np.sum(self.b**2)
+				z = np.dot(self.x, self.w) + self.b
+			elif self.chip == 'GPU':
+				self.L1w = self.l1w * cp.sum(np.abs(self.w))
+				self.L1b = self.l1b * cp.sum(np.abs(self.b))
+				self.L2w = self.l2w * cp.sum(self.w**2)
+				self.L2b = self.l2b * cp.sum(self.b**2)
+				z = cp.dot(self.x, self.w) + self.b
+			self.L1L2 = self.L1w + self.L1b + self.L2w + self.L2b
 			return(z)
 		def backward(self, dz):
-			if   self.chip == 'CPU':
+			if self.chip == 'CPU':
 				self.dw = np.dot(self.x.T, dz)
 				self.db = np.sum(dz, axis=0, keepdims=True)
 				self.dx = np.dot(dz, self.w.T)
+				L1_dw = np.ones_like(self.w)
+				L1_dw[self.w < 0] = -1
+				self.dw += self.l1w * L1_dw
+				L1_db = np.ones_like(self.b)
+				L1_db[self.b < 0] = -1
+				self.db += self.l1b * L1_db
+				self.dw += 2 * self.l2w * self.w
+				self.db += 2 * self.l2b * self.b
 			elif self.chip == 'GPU':
 				self.dw = cp.dot(self.x.T, dz)
 				self.db = cp.sum(dz, axis=0, keepdims=True)
 				self.dx = cp.dot(dz, self.w.T)
+				L1_dw = cp.ones_like(self.w)
+				L1_dw[self.w < 0] = -1
+				self.dw += self.l1w * L1_dw
+				L1_db = cp.ones_like(self.b)
+				L1_db[self.b < 0] = -1
+				self.db += self.l1b * L1_db
+				self.dw += 2 * self.l2w * self.w
+				self.db += 2 * self.l2b * self.b
 			return(self.dx)
 	#---------- Training ---------- #
 	def train(self,
@@ -409,9 +411,10 @@ class PyNN():
 				# Forward propagation
 				y_true = Y_train_batch
 				y_pred = self.forward(X_train_batch)
-				cost_train = self.cost(loss_fn.forward(y_true, y_pred))
+				L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
+				L1L2 = sum(L1L2)
+				cost_train = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
 				accuracy_train = acc.calc(y_true, y_pred)
-				print(cost_train)
 				# Backpropagation
 				dy = loss_fn.backward(y_true, y_pred)
 				dx = self.backward(dy)
@@ -443,8 +446,6 @@ class PyNN():
 
 '''
 [ ] Verbosity
-[ ] Regularisation
-	skip dropout in vali/test/preiction
 '''
 
 #----- Import Data -----#
@@ -457,8 +458,6 @@ X, Y = sine_data()
 
 model = PyNN()
 model.add(model.Dense(1, 64))
-#model.add(model.BatchNorm())
-model.add(model.Dropout())
 model.add(model.Sigmoid())
 model.add(model.Dense(64, 64))
 model.add(model.Sigmoid())
