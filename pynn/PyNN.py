@@ -7,16 +7,25 @@ np.random.seed(42)
 
 class PyNN():
 	''' Lightweight NumPy-based neural network library '''
-	#---------- Utilities ---------- #
+	#---------- Utilities ----------#
 	def __init__(self):
 		''' Initialise the class with the following objects and detect GPU '''
 		self.layers = []
+		self.R = '\033[31m' # Red
+		self.G = '\033[32m' # Green
+		self.B = '\033[34m' # Blue
+		self.O = '\033[33m' # Orange
+		self.g = '\033[90m' # Grey
+		self.W = '\033[97m' # White
+		self.P = '\033[35m' # Purple
+		self.r = '\033[0m'  # Reset
 		try:
 			cp.cuda.Device(0).compute_capability
 			self.chip = 'GPU'
 		except:
 			self.chip = 'CPU'
-		print(f'[+] Running on {self.chip}')
+		print(f'\x1B[3m\033[1m{self.P}PyNN{self.r} ', end='')
+		print(f'is running on {self.g}{self.chip}{self.r}')
 	def add(self, layer):
 		''' Add a layer to the network '''
 		if isinstance(layer, self.Dense):
@@ -56,12 +65,14 @@ class PyNN():
 		def check(self, epoch, loss):
 			if loss < self.best_loss - self.min_delta: self.best_loss = loss
 			if epoch > 1 and abs(loss - self.best_loss) < self.min_delta:
-				print('[+] Stopping early: Training loss plateaued')
+				print('{self.R}Early Stop: Training loss plateaued{self.r}')
 				return(True)
 			return(False)
 	def show(self):
 		''' Print out the structure of the network '''
-		print('-'*60 + f"\n{'Layer':<25}{'Shape':<25}Parameters\n" + '-'*60)
+		print(f'{self.B}' + '-'*60 + f'{self.r}')
+		print(f"{self.g}{'Layer':<25}{'Shape':<25}Parameters{self.r}")
+		print(f'{self.B}' + '-'*60 + f'{self.r}')
 		total_params = 0
 		for layer in self.layers:
 			name = layer.__class__.__name__
@@ -71,8 +82,9 @@ class PyNN():
 				total_params += params
 			else:
 				shape, params = '', ''
-			print(f'{name:<25}{str(shape):<25}{params}')
-		print('-'*30 + f'\nTotal Parameters: {total_params:,}')
+			print(f'{self.O}{name:<25}{self.G}{str(shape):<25}{params}{self.r}')
+		print(f'{self.B}' + '-'*30 + f'{self.r}')
+		print(f'{self.P}Total Parameters: \033[1m{total_params:,}{self.r}')
 	def save(self, path='./model'):
 		''' Save model '''
 		with open(f'{path}.pkl', 'wb') as f:
@@ -152,7 +164,7 @@ class PyNN():
 				jacobian_matrix = np.diagflat(y) - np.dot(y, y.T)
 				dz[i] = np.dot(jacobian_matrix, dy)
 			return(dz)
-	#---------- Loss Functions ---------- #
+	#---------- Loss Functions ----------#
 	class MSE_Loss():
 		''' The Mean Squared Error loss '''
 		def forward(self, y_true, y_pred):
@@ -194,7 +206,7 @@ class PyNN():
 				y_true = np.eye(len(y_pred[0]))[y_true]
 			dy = (-y_true / y_pred) / len(y_pred)
 			return(dy)
-	#---------- Accuracy Functions ---------- #
+	#---------- Accuracy Functions ----------#
 	class Regression_Accuracy():
 		''' Accuracy for regression models '''
 		def calc(self, y_true, y_pred):
@@ -214,7 +226,7 @@ class PyNN():
 			predictions = np.argmax(y_pred, axis=1)
 			accuracy = np.mean(predictions == y_true)
 			return(accuracy)
-	#---------- Optimisers ---------- #
+	#---------- Optimisers ----------#
 	def SGD(self, lr, decay, iters, layer):
 		''' The Stochastic Gradient Descent optimiser '''
 		lr = lr * (1. / (1. + decay * iters))
@@ -376,7 +388,7 @@ class PyNN():
 				self.dw += 2 * self.l2w * self.w
 				self.db += 2 * self.l2b * self.b
 			return(self.dx)
-	#---------- Training ---------- #
+	#---------- Training ----------#
 	def train(self,
 			X_train=None, Y_train=None,
 			X_valid=None, Y_valid=None,
@@ -386,7 +398,8 @@ class PyNN():
 			accuracy='BINARY',
 			optimiser='SGD', lr=0.1, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7,
 			early_stop=False,
-			epochs=1):
+			epochs=1,
+			verbose=1):
 		''' Train the network '''
 		steps = 0
 		if   loss.lower() == 'mse': loss_fn = self.MSE_Loss()
@@ -444,9 +457,10 @@ class PyNN():
 			accuracy_tests = acc.calc(y_true, y_pred)
 
 
-'''
-[ ] Verbosity
-'''
+
+
+
+
 
 #----- Import Data -----#
 def sine_data(samples=1000):
@@ -463,5 +477,7 @@ model.add(model.Dense(64, 64))
 model.add(model.Sigmoid())
 model.add(model.Dense(64, 1))
 model.add(model.Linear())
+
+model.show()
 
 model.train(X, Y, loss='MSE', accuracy='regression', lr=0.05, epochs=1)
