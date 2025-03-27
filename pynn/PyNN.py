@@ -257,41 +257,43 @@ class PyNN():
 		layer.w -= lr * w_m_c / (np.sqrt(w_c_c) + e)
 		layer.b -= lr * b_m_c / (np.sqrt(b_c_c) + e)
 	#---------- Regularisation ----------#
+	class Dropout():
+		''' The dropout regularisation layer '''
+		def __init__(self, p=0.25):
+			self.p = p
+		def forward(self, y, train=True):
+			if train:
+				self.mask = np.random.binomial(1, 1-self.p, y.shape)/(1-self.p)
+				y *= self.mask
+			return(y)
+		def backward(self, dy):
+			dz *= self.mask
+			return(dz)
 
 
 
-#	class Dropout():
-#		''' The dropout regularisation layer '''
-#		def __init__(self, p=0.25):
-#			self.p = p
-#		def forward(self, y, train=True):
-#			if train:
-#				self.mask = np.random.binomial(1, 1-self.p, y.shape)/(1-self.p)
-#				y *= self.mask
-#			return(y)
-#		def backward(self, DA_Dz):
-#			DA_Dz *= self.mask
-#			return(DA_Dz)
-#	class BatchNorm():
-#		''' The Batch Normalisation regularisation layer '''
-#		def __init__(self, g=1.0, b=0.0, e=1e-7): ##############3 not confident of it
-#			self.w = g # replace g with w for optimiser
-#			self.b = b
-#			self.e = e
-#		def forward(self, z):
-#			self.z = z
-#			self.mean = np.mean(z, axis=0, keepdims=True)
-#			self.var = np.var(z, axis=0, keepdims=True)
-#			self.z_norm = (self.z - self.mean) / np.sqrt(self.var + self.e)
-#			z_new = self.w * self.z_norm + self.b
-#			return(z_new)
-#		def backward(self, DA_Dz):
-#			m = self.z.shape[0]
-#			self.dL_dw = np.sum(DA_Dz * self.z_norm, axis=0, keepdims=True) # dg
-#			self.dL_db = np.sum(DA_Dz, axis=0, keepdims=True) # db
-#			self.dB_dz = (self.w * (1./np.sqrt(self.var + self.e)) / m) * (m * DA_Dz - np.sum(DA_Dz, axis=0)
-#			- (1./np.sqrt(self.var + self.e))**2 * (self.z - self.mean) * np.sum(DA_Dz*(self.z - self.mean), axis=0))
-#			return(self.dB_dz)
+	class BatchNorm():
+		''' The Batch Normalisation regularisation layer '''
+		def __init__(self, g=1.0, b=0.0, e=1e-7):
+			self.w = g
+			self.b = b
+			self.e = e
+		def forward(self, z):
+			self.z = z
+			self.mean = np.mean(z, axis=0, keepdims=True)
+			self.var = np.var(z, axis=0, keepdims=True)
+			self.z_norm = (self.z - self.mean) / np.sqrt(self.var + self.e)
+			z_new = self.w * self.z_norm + self.b
+			return(z_new)
+		def backward(self, dy):
+			m = self.z.shape[0]
+			self.dw = np.sum(dy * self.z_norm, axis=0, keepdims=True) # dg
+			self.db = np.sum(dy, axis=0, keepdims=True) # db
+			self.dz = (self.w * (1./np.sqrt(self.var + self.e)) / m) * (m * dy - np.sum(dy, axis=0)
+			- (1./np.sqrt(self.var + self.e))**2 * (self.z - self.mean) * np.sum(dy*(self.z - self.mean), axis=0))
+			return(self.dz)
+
+
 #	class L1L2():
 #		''' L1 + L2 regularisation '''
 #		def forward(self, w, b, l1w, l1b, l2w, l2b):
@@ -396,7 +398,7 @@ class PyNN():
 		if early_stop: STOP = self.EarlyStopping()
 		for epoch in range(epochs):
 			# Shuffle training datatset
-			X_train, Y_train = self.shuffle_data(X_train, Y_train)
+#			X_train, Y_train = self.shuffle_data(X_train, Y_train)
 			for step in range(steps + 1):
 				# Batch segmentation
 				X_train_batch = X_train
@@ -409,6 +411,7 @@ class PyNN():
 				y_pred = self.forward(X_train_batch)
 				cost_train = self.cost(loss_fn.forward(y_true, y_pred))
 				accuracy_train = acc.calc(y_true, y_pred)
+				print(cost_train)
 				# Backpropagation
 				dy = loss_fn.backward(y_true, y_pred)
 				dx = self.backward(dy)
@@ -427,13 +430,13 @@ class PyNN():
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
 				y_true = Y_valid
-				y_pred = self.forward(X_valid)
+				y_pred = self.forward(X_valid) ##### PREICT
 				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
 				accuracy_valid = acc.calc(y_true, y_pred)
 		# Evaluate test set
 		if X_tests is not None and Y_tests is not None:
 			y_true = Y_tests
-			y_pred = self.forward(X_tests)
+			y_pred = self.forward(X_tests) ###### PREICT
 			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
 			accuracy_tests = acc.calc(y_true, y_pred)
 
@@ -441,6 +444,7 @@ class PyNN():
 '''
 [ ] Verbosity
 [ ] Regularisation
+	skip dropout in vali/test/preiction
 '''
 
 #----- Import Data -----#
@@ -453,10 +457,11 @@ X, Y = sine_data()
 
 model = PyNN()
 model.add(model.Dense(1, 64))
+model.add(model.BatchNorm())
 model.add(model.Sigmoid())
 model.add(model.Dense(64, 64))
 model.add(model.Sigmoid())
 model.add(model.Dense(64, 1))
 model.add(model.Linear())
 
-model.train(X, Y, loss='MSE', accuracy='regression', lr=0.05, epochs=10)
+model.train(X, Y, loss='MSE', accuracy='regression', lr=0.05, epochs=1)
