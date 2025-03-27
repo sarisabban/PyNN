@@ -27,9 +27,9 @@ from pynn import *
 
 # Generate some data
 def sine_data(samples=1000):
-	X = np.arange(samples).reshape(-1, 1) / samples
-	y = np.sin(2 * np.pi * X).reshape(-1, 1)
-	return(X, y)
+    X = np.arange(samples).reshape(-1, 1) / samples
+    y = np.sin(2 * np.pi * X).reshape(-1, 1)
+    return(X, y)
 X, Y = sine_data()
 
 X_train, X_valid, Y_train, Y_valid = sklearn.model_selection.train_test_split(X, Y, train_size=600)
@@ -50,16 +50,17 @@ model.add(model.Linear())
 model.show()
 
 # Train the model
-model.train(X_train, Y_train,
-			X_valid, Y_valid,
-			X_tests, Y_tests,
-			batch_size=32,
-			loss='MSE',
-			accuracy='regression',
-			optimiser='SGD', lr=0.05, decay=0.2, beta1=0.9, beta2=0.999, e=1e-7,
-			early_stop=False,
-			epochs=100,
-			verbose=1)
+model.train(
+    X_train, Y_train,
+    X_valid, Y_valid,
+    X_tests, Y_tests,
+    batch_size=32,
+    loss='MSE',
+    accuracy='regression',
+    optimiser='SGD', lr=0.05, decay=0.2, beta1=0.9, beta2=0.999, e=1e-7,
+    early_stop=False,
+    epochs=100,
+    verbose=1)
 
 # Save the model
 model.save('model.pkl')
