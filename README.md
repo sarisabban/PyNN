@@ -37,30 +37,28 @@ X_valid, X_tests, Y_valid, Y_tests = sklearn.model_selection.train_test_split(X,
 
 # Define the network architecture
 model = PyNN()
-model.add(model.Dense(1, 64))
-model.add(model.BatchNorm())
+model.add(model.Dense(1, 64, l1w=0, l1b=0, l2w=0, l2b=0))
 model.add(model.ReLU())
 model.add(model.Dense(64, 64))
-model.add(model.Sigmoid())
-model.add(model.Dropout())
+model.add(model.LeakyReLU(alpha=0.1))
 model.add(model.Dense(64, 1))
 model.add(model.Linear())
+
 
 # Show the network architecture
 model.show()
 
 # Train the model
 model.train(
-    X_train, Y_train,
-    X_valid, Y_valid,
-    X_tests, Y_tests,
-    batch_size=32,
-    loss='MSE',
-    accuracy='regression',
-    optimiser='SGD', lr=0.05, decay=0.2, beta1=0.9, beta2=0.999, e=1e-7,
-    early_stop=False,
-    epochs=100,
-    verbose=1)
+	X_train, Y_train,
+	X_valid, Y_valid,
+	X_tests, Y_tests,
+	batch_size=None,
+	loss='MSE',
+	accuracy='regression',
+	optimiser='SGD', lr=0.05, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7,
+	early_stop=False,
+	epochs=1, verbose=2)
 
 # Save the model
 model.save('model.pkl')

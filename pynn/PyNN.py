@@ -1,3 +1,4 @@
+import time
 import math
 import pickle
 #import cupy as cp
@@ -85,25 +86,32 @@ class PyNN():
 			print(f'{self.O}{name:<25}{self.G}{str(shape):<25}{params}{self.r}')
 		print(f'{self.B}' + '-'*30 + f'{self.r}')
 		print(f'{self.P}Total Parameters: \033[1m{total_params:,}{self.r}')
-
-
-
-
-
-
-	def verbosity(self, cost, accuracy, level, args=[]):
+	def verbosity(self, sets, cost, accuracy, level, args=[]):
 		''' Print training information '''
-		# 0 silent
-		# 1. valid, test
-		# 2. training with batches, valid, test
-		print(f'{args}, {cost}, {accuracy}')
+		C, A = f'{self.O}{cost:.4f}{self.r}', f'{self.O}{accuracy:.4f}{self.r}'
+		s = f'{self.P}-{self.r}'
+		t = f'{self.g}{args[-1]:.0f}s{self.r}'
+		VT = f'{self.g}{sets}:{self.r} Cost: {C} {s} Accuracy: {A} {s} {t}'
+		if level == 1: print(VT)
+		elif level == 2:
+			if len(args) > 1:
+				pass
 
 
 
 
+				'''
+				Training epoch 1/1:
+					Batch 1/1: Cost: 0.0000 - Accuracy: 0.0000 (time)
+				'''
+
+#				E, S, t = args[0], args[1], args[2]
+#				print(f'{E}/{E}, {S}/{S}, {C}, {A}')
 
 
 
+
+			else: print(VT)
 	def save(self, path='./model'):
 		''' Save model '''
 		with open(f'{path}.pkl', 'wb') as f:
@@ -434,6 +442,7 @@ class PyNN():
 			# Shuffle training datatset
 			X_train, Y_train = self.shuffle_data(X_train, Y_train)
 			for step in range(steps + 1):
+				start = time.process_time()
 				# Batch segmentation
 				X_train_batch = X_train
 				Y_train_batch = Y_train
@@ -461,26 +470,37 @@ class PyNN():
 							self.RMSprop(lr, decay, epoch, beta1, e, layer)
 						elif optimiser.lower() == 'adam':
 							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
+					end = time.process_time()
+					t = end - start
 				if verbose == 2:
-					args = [epoch + 1, step + 1]
-					self.verbosity(cost_train, accuracy_train, verbose, args)
+					args = [epoch + 1, step + 1, t]
+					self.verbosity('Train', cost_train, accuracy_train, \
+					verbose, args)
 			if early_stop and STOP.check(epoch, cost_train): break
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
+				start = time.process_time()
 				y_true = Y_valid
 				y_pred = self.predict(X_valid)
 				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
 				accuracy_valid = acc.calc(y_true, y_pred)
+				end = time.process_time()
+				t = end - start
 				if verbose == 1 or verbose == 2:
-					self.verbosity(cost_valid, accuracy_valid, verbose)
+					self.verbosity('Valid', cost_valid, accuracy_valid, \
+					verbose, args=[t])
 		# Evaluate test set
 		if X_tests is not None and Y_tests is not None:
+			start = time.process_time()
 			y_true = Y_tests
 			y_pred = self.predict(X_tests)
 			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
 			accuracy_tests = acc.calc(y_true, y_pred)
+			end = time.process_time()
+			t = end - start
 			if verbose == 1 or verbose == 2:
-				self.verbosity(cost_tests, accuracy_tests, verbose)
+				self.verbosity('Tests', cost_tests, accuracy_tests, \
+				verbose, args=[t])
 
 
 
