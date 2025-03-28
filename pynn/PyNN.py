@@ -86,22 +86,42 @@ class PyNN():
 			print(f'{self.O}{name:<25}{self.G}{str(shape):<25}{params}{self.r}')
 		print(f'{self.B}' + '-'*30 + f'{self.r}')
 		print(f'{self.P}Total Parameters: \033[1m{total_params:,}{self.r}')
+
+
+
+
+
+
+
 	def verbosity(self, sets, cost, accuracy, args=[]):
 		''' Print training information '''
-		C = f'{self.O}{cost:.5f}{self.r}'
-		A = f'{self.O}{accuracy:.5f}{self.r}'
-		h = f'{self.P}-{self.r}'
+		C = f'{self.G}Cost {self.O}{cost:.5f}{self.r}'
+		A = f'{self.G}Accuracy {self.O}{accuracy:.5f}{self.r}'
+		h = f'{self.B}-{self.r}'
 		t = f'{self.g}{args[4]:.0f}s{self.r}'
-		B = f'  Batch {self.B}{args[2]}/{args[3]}{self.r}'
-		V = f'{self.g}{sets} epoch {args[0]}/{args[1]}:{self.r}'
+		T = f'{self.g}{sets}: epoch {args[0]}/{args[1]}{self.r}'
+		B = f'  {self.P}Batch {args[2]}/{args[3]}{self.r}'
+		V = f'{self.g}{sets}: epoch {args[0]}/{args[1]}{self.r}'
 		R = f'{self.g}{sets}:{self.r}'
 		if sets.lower() == 'train':
-			string = f'{B} {h} Cost {C} {h} Accuracy {A} {h} {t}'
+
+			string = f'{B:<27} {C} {h} {A} {h} {t}'
+#			string2 = f'{V:<27} {C} {h} {A} {h} {t}'
+#			string3 = f'{V:<27} {C} {h} {A} {h} {t}'
+
 		elif sets.lower() == 'valid':
-			string = f'{V} {h} Cost {C} {h} Accuracy {A} {h} {t}'
+			string = f'{T:<27} {C} {h} {A} {h} {t}' 
+#			string = f'{V:<27} {C} {h} {A} {h} {t}'
 		elif sets.lower() == 'tests':
-			string = f'{R} Cost {C} {h} Accuracy {A} {h} {t}'
+			string = f'{R:<27} {C} {h} {A} {h} {t}'
 		print(string)
+
+
+
+
+
+
+
 	def save(self, path='./model'):
 		''' Save model '''
 		with open(f'{path}.pkl', 'wb') as f:
@@ -429,26 +449,26 @@ class PyNN():
 		if batch_size is not None: steps = X_train.shape[0] // batch_size
 		if early_stop: STOP = self.EarlyStopping()
 		for epoch in range(epochs):
-			if verbose == 2:
-				T = f'{self.g}Training epoch {epoch+1}/{epochs}:{self.r}'
-				print(f'{T}')
 			# Shuffle training datatset
 			X_train, Y_train = self.shuffle_data(X_train, Y_train)
-			for step in range(steps + 1):
+			for step in range(steps):
 				start = time.process_time()
 				# Batch segmentation
-				X_train_batch = X_train
-				Y_train_batch = Y_train
 				if batch_size is not None:
-					X_train_batch = X[step * batch_size:(step + 1) * batch_size]
-					Y_train_batch = Y[step * batch_size:(step + 1) * batch_size]
+					start_idx = step * batch_size
+					end_idx = min((step + 1) * batch_size, len(X_train))
+					X_batch = X_train[start_idx:end_idx]
+					Y_batch = Y_train[start_idx:end_idx]
+				else:
+					X_batch = X_train
+					Y_batch = Y_train
 				# Forward propagation
-				y_true = Y_train_batch
-				y_pred = self.forward(X_train_batch)
+				y_true = Y_batch
+				y_pred = self.forward(X_batch)
 				L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
 				L1L2 = sum(L1L2)
-				cost_train = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
-				accuracy_train = acc.calc(y_true, y_pred)
+				cost_batch = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
+				accuracy_batch = acc.calc(y_true, y_pred)
 				# Backpropagation
 				dy = loss_fn.backward(y_true, y_pred)
 				dx = self.backward(dy)
@@ -463,12 +483,21 @@ class PyNN():
 							self.RMSprop(lr, decay, epoch, beta1, e, layer)
 						elif optimiser.lower() == 'adam':
 							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
-					end = time.process_time()
-					t = end - start
+				end = time.process_time()
+				t = end - start
 				if verbose == 2:
-					args = [epoch + 1, epochs, step + 1, steps + 1, t]
-					self.verbosity('Train', cost_train, accuracy_train, args)
-			if early_stop and STOP.check(epoch, cost_train): break
+					args = [epoch + 1, epochs, step + 1, steps, t]
+					self.verbosity('Batch', cost_batch, accuracy_batch, args)
+			# Evaluate training set
+			y_true = Y_train
+			y_pred = self.predict(X_train)
+			cost_train = self.cost(loss_fn.forward(y_true, y_pred))
+			accuracy_train = acc.calc(y_true, y_pred)
+			end = time.process_time()
+			t = end - start
+			if verbose == 1 or verbose == 2:
+				args = [epoch + 1, epochs, step + 1, steps, t]
+				self.verbosity('Train', cost_train, accuracy_train, args)
 			# Evaluate validation set
 			if X_valid is not None and Y_valid is not None:
 				start = time.process_time()
@@ -479,8 +508,10 @@ class PyNN():
 				end = time.process_time()
 				t = end - start
 				if verbose == 1 or verbose == 2:
-					args = [epoch + 1, epochs, step + 1, steps + 1, t]
+					args = [epoch + 1, epochs, step + 1, steps, t]
 					self.verbosity('Valid', cost_valid, accuracy_valid, args)
+			# Early stop checkpoint
+			if early_stop and STOP.check(epoch, cost_train): break
 		# Evaluate test set
 		if X_tests is not None and Y_tests is not None:
 			start = time.process_time()
@@ -491,8 +522,8 @@ class PyNN():
 			end = time.process_time()
 			t = end - start
 			if verbose == 1 or verbose == 2:
+				args = [epoch + 1, epochs, step + 1, steps, t]
 				self.verbosity('Tests', cost_tests, accuracy_tests, args)
-
 
 
 
@@ -523,4 +554,4 @@ model.train(
 X_train, Y_train,
 X_valid, Y_valid,
 X_tests, Y_tests,
-loss='MSE', accuracy='regression', batch_size=32, lr=0.05, epochs=1, verbose=2)
+loss='MSE', accuracy='regression', batch_size=32, lr=0.05, epochs=1, verbose=1)
