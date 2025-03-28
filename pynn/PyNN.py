@@ -88,26 +88,20 @@ class PyNN():
 		print(f'{self.P}Total Parameters: \033[1m{total_params:,}{self.r}')
 	def verbosity(self, sets, cost, accuracy, args=[]):
 		''' Print training information '''
-		C, A = f'{self.O}{cost:.5f}{self.r}', f'{self.O}{accuracy:.5f}{self.r}'
-		h    = f'{self.P}-{self.r}'
-		B    = f'  Batch {self.B}{args[2]}/{args[3]}{self.r}'
-		t    = f'{self.g}{args[4]:.0f}s{self.r}'
-		E    = f'{self.g}{args[0]}/{args[1]}{self.r}'
-		S    = f'{self.g}{sets}:{self.r}'
-
-
-
-
-		if sets.lower() == 'valid':
-			string = f'{S} Epoch {E} {h} Cost {C} {h} Accuracy {A} {h} {t}'
-		elif sets.lower() == 'tests':
-			string = f'{S} Cost {C} {h} Accuracy {A} {h} {t}'
-		elif sets.lower() == 'train':
+		C = f'{self.O}{cost:.5f}{self.r}'
+		A = f'{self.O}{accuracy:.5f}{self.r}'
+		h = f'{self.P}-{self.r}'
+		t = f'{self.g}{args[4]:.0f}s{self.r}'
+		B = f'  Batch {self.B}{args[2]}/{args[3]}{self.r}'
+		V = f'{self.g}{sets} epoch {args[0]}/{args[1]}:{self.r}'
+		R = f'{self.g}{sets}:{self.r}'
+		if sets.lower() == 'train':
 			string = f'{B} {h} Cost {C} {h} Accuracy {A} {h} {t}'
+		elif sets.lower() == 'valid':
+			string = f'{V} {h} Cost {C} {h} Accuracy {A} {h} {t}'
+		elif sets.lower() == 'tests':
+			string = f'{R} Cost {C} {h} Accuracy {A} {h} {t}'
 		print(string)
-
-
-
 	def save(self, path='./model'):
 		''' Save model '''
 		with open(f'{path}.pkl', 'wb') as f:
