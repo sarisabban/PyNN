@@ -4,6 +4,7 @@ import pickle
 #import cupy as cp
 import numpy as np
 
+import time
 np.random.seed(42)
 
 class PyNN():
@@ -105,7 +106,7 @@ class PyNN():
 			Ab = f'{self.G}Accuracy {self.O}{Abatch:.5f}{self.r}'
 			St = f'{self.g}batch {step}/{steps}{self.r}'
 			string = f'{E} {n} {St} {n} {Cb} {n} {Ab} {n} {t}'
-			print(string)################# should print then disapear
+			print(string, end='\r')
 		elif sets.lower() == 'train' or sets.lower() == 'valid':
 			pass
 			Ct = f'{self.G}Train Cost {self.O}{Ctrain:.5f}{self.r}'
