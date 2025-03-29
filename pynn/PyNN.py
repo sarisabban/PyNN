@@ -323,14 +323,14 @@ class PyNN():
 			return(dz)
 	class BatchNorm():
 		''' The Batch Normalisation regularisation layer '''
-		def __init__(self, g=1.0, b=0.0, e=1e-7):
-			self.w = g
-			self.b = b
+		def __init__(self, gamma=1.0, beta=0.0, e=1e-7):
+			self.w = gamma
+			self.b = beta
 			self.e = e
-
-#			self.w_m = np.zeros_like(w)
-
-
+			self.w_m = np.zeros_like(self.w)
+			self.w_c = np.zeros_like(self.w)
+			self.b_m = np.zeros_like(self.b)
+			self.b_c = np.zeros_like(self.b)
 		def forward(self, z):
 			self.z = z
 			self.mean = np.mean(z, axis=0, keepdims=True)
@@ -340,8 +340,8 @@ class PyNN():
 			return(z_new)
 		def backward(self, dy):
 			m = self.z.shape[0]
-			self.dw = np.sum(dy * self.z_norm, axis=0, keepdims=True) # dg
-			self.db = np.sum(dy, axis=0, keepdims=True)               # db
+			self.dw = np.sum(dy * self.z_norm, axis=0, keepdims=True) # d_gamma
+			self.db = np.sum(dy, axis=0, keepdims=True)               # d_beta
 			self.dz = (self.w * (1./np.sqrt(self.var + self.e)) / m) \
 			* (m*dy - np.sum(dy, axis=0) - (1./np.sqrt(self.var + self.e))**2 \
 			* (self.z - self.mean) * np.sum(dy*(self.z - self.mean), axis=0))
@@ -546,7 +546,6 @@ class PyNN():
 #----- Import Data -----#
 
 '''
-[ ] Fix BatchNorm adm training
 [ ] Train on sine dataset
 [ ] train on spiral dataset
 [ ] train on MNIST dataset
@@ -566,7 +565,7 @@ X_valid, X_tests, Y_valid, Y_tests = sklearn.model_selection.train_test_split(X,
 
 model = PyNN()
 model.add(model.Dense(1, 64))
-#model.add(model.BatchNorm())
+model.add(model.BatchNorm())
 model.add(model.ReLU())
 model.add(model.Dense(64, 64))
 model.add(model.ReLU())
@@ -580,7 +579,4 @@ X_train, Y_train,
 X_valid, Y_valid,
 X_tests, Y_tests,
 optimiser='adam',
-loss='MSE', accuracy='regression', batch_size=None, lr=0.05, epochs=10, verbose=2)
-
-
-
+loss='MSE', accuracy='regression', batch_size=None, lr=0.05, epochs=1000, verbose=2)
