@@ -4,7 +4,6 @@ import pickle
 #import cupy as cp
 import numpy as np
 
-import time
 np.random.seed(42)
 
 class PyNN():
@@ -78,7 +77,7 @@ class PyNN():
 		total_params = 0
 		for layer in self.layers:
 			name = layer.__class__.__name__
-			if hasattr(layer, 'w'):
+			if isinstance(layer, (self.Dense)):
 				shape = layer.w.shape
 				params = math.prod(shape)
 				total_params += params
@@ -328,6 +327,10 @@ class PyNN():
 			self.w = g
 			self.b = b
 			self.e = e
+
+#			self.w_m = np.zeros_like(w)
+
+
 		def forward(self, z):
 			self.z = z
 			self.mean = np.mean(z, axis=0, keepdims=True)
@@ -448,6 +451,7 @@ class PyNN():
 		elif accuracy.lower() == 'binary':     acc = self.Binary_Accuracy()
 		elif accuracy.lower() == 'categorical':acc = self.Categorical_Accuracy()
 		if batch_size is not None: steps = X_train.shape[0] // batch_size
+		else: steps = 1
 		if early_stop: STOP = self.EarlyStopping()
 		args = {'cost_batch':None, 'accuracy_batch':None,
 				'cost_train':None, 'accuracy_train':None,
@@ -484,7 +488,7 @@ class PyNN():
 				dx = self.backward(dy)
 				# Gradient descent
 				for layer in self.layers:
-					if isinstance(layer, (self.Dense)):
+					if isinstance(layer, (self.Dense, self.BatchNorm)):
 						if optimiser.lower() == 'sgd':
 							self.SGD(lr, decay, epoch, layer)
 						elif optimiser.lower() == 'adagrad':
@@ -540,6 +544,15 @@ class PyNN():
 
 
 #----- Import Data -----#
+
+'''
+[ ] Fix BatchNorm adm training
+[ ] Train on sine dataset
+[ ] train on spiral dataset
+[ ] train on MNIST dataset
+[ ] train on fasion MNIST
+'''
+
 import sklearn
 def sine_data(samples=1000):
 	X = np.arange(samples).reshape(-1, 1) / samples
@@ -553,9 +566,10 @@ X_valid, X_tests, Y_valid, Y_tests = sklearn.model_selection.train_test_split(X,
 
 model = PyNN()
 model.add(model.Dense(1, 64))
-model.add(model.Sigmoid())
+#model.add(model.BatchNorm())
+model.add(model.ReLU())
 model.add(model.Dense(64, 64))
-model.add(model.Sigmoid())
+model.add(model.ReLU())
 model.add(model.Dense(64, 1))
 model.add(model.Linear())
 
@@ -565,4 +579,8 @@ model.train(
 X_train, Y_train,
 X_valid, Y_valid,
 X_tests, Y_tests,
-loss='MSE', accuracy='regression', batch_size=32, lr=0.05, epochs=1, verbose=2)
+optimiser='adam',
+loss='MSE', accuracy='regression', batch_size=None, lr=0.05, epochs=10, verbose=2)
+
+
+
