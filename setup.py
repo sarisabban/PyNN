@@ -15,4 +15,4 @@ setuptools.setup(
 	project_urls={'Bug Tracker':'https://github.com/sarisabban/PyNN/issues'},
 	license='MIT',
 	packages=['pynn'],
-	install_requires=['numpy', 'cupy'])
+	install_requires=['numpy'])

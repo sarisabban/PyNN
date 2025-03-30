@@ -29,7 +29,7 @@ from pynn import *
 
 # Any data preparations or cleanup should be done using scikit-learn
 
-model = PyNN()                        # Call the PyNN class
+model = PyNN()                        # Call the PyNN class, will auto detect the presence of a GPU and switch to it
 model.add(model.Dense(INPUT, OUTPUT)) # Dense(INPUT, OUTPUT, alg='glorot uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5, l1w=0, l1b=0, l2w=0, l2b=0)
 model.add(model.ReLU())               # Activation functions can be: Step(), Linear(), Sigmoid(), ReLU(), LeakyReLU(alpha=0.01), TanH(), Softmax()
 model.add(model.Dense(INPUT, OUTPUT)) # Layers can be: Dense(INPUT, OUTPUT) flatten(X) Dropout(p=0.25) BatchNorm(gamma=1.0, beta=0.0, e=1e-7)
@@ -45,7 +45,7 @@ model.train(
     loss='bce',                                        # Loss functions: 'MSE', 'MAE', 'BCE', 'CCE'
     accuracy='binary',                                 # Accuracy algorithms: 'regression', 'binary', 'categorical'
     optimiser='sgd',                                   # Optimisers: 'sgd', 'adagrad', 'rmsprop', 'adam'
-	lr=0.1, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7, # Optimiser parameters
+    lr=0.1, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7, # Optimiser parameters
     early_stop=False,                                  # Currently only tracks plateau of training loss
     epochs=1,                                          # Number of training epochs
     verbose=1)                                         # Training verbosity: 0 for total silence - 1 to show train/valid/test set cost/accuracy outputs - 2 to output everything including mini-batch cost/accuracy
