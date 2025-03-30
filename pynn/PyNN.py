@@ -1,8 +1,10 @@
 import time
 import math
 import pickle
-import cupy as cp
 import numpy as np
+
+try: import cupy as cp
+else: pass
 
 class PyNN():
 	''' Lightweight NumPy-based neural network library '''
