@@ -1,13 +1,19 @@
+import os
 import sklearn
+import zipfile
 import numpy as np
 from pynn import *
 
 np.random.seed(42)
-# Download the dataset https://git-disl.github.io/GTDLBench/datasets/mnist_datasets/
-# unzip the dataset
 
-X_train = np.genfromtxt('/home/slurm/Desktop/mnist_train.csv', delimiter=',')
-X_tests = np.genfromtxt('/home/slurm/Desktop/mnist_test.csv', delimiter=',')
+# Download the dataset https://git-disl.github.io/GTDLBench/datasets/mnist_datasets/
+
+if os.path.exists('MNIST_CSV.zip'):
+	with zipfile.ZipFile('MNIST_CSV.zip','r') as zip_ref: zip_ref.extractall('./')
+	os.remove('MNIST_CSV.zip')
+
+X_train = np.genfromtxt('./mnist_train.csv', delimiter=',')
+X_tests = np.genfromtxt('./mnist_test.csv', delimiter=',')
 
 Y_train = X_train[:,0 ] # (60000, 784)
 X_train = X_train[:,1:] # (60000,)
@@ -21,9 +27,9 @@ X_tests, Y_tests = sklearn.utils.shuffle(X_tests, Y_tests)
 X_train, X_valid, Y_train, Y_valid = sklearn.model_selection.train_test_split(X_train, Y_train, train_size=50000)
 
 # Scale images to a [0, 1] range
-X_train = X_train.astype("float32") / 255
-X_valid = X_tests.astype("float32") / 255
-X_tests = X_tests.astype("float32") / 255
+X_train = X_train.astype('float32') / 255
+X_valid = X_tests.astype('float32') / 255
+X_tests = X_tests.astype('float32') / 255
 
 # Ensure Y labels are integers
 Y_train = Y_train.astype(int)
@@ -61,4 +67,5 @@ model.train(
 	epochs=20,
 	verbose=2)
 
-# 
+# Train: epoch 20/20           Train Cost 0.20835 | Train Accuracy 0.93862 | 68s
+# Tests:                       Tests Cost 0.20469 | Tests Accuracy 0.93840 | 1s

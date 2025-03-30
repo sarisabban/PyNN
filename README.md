@@ -57,7 +57,7 @@ model.load('./model.pkl')             # Load the saved model
 model.predict(X_VALUE)                # Perform a prediction
 ```
 
-You can run the following banchmark scripts:
+You can run the following banchmark scripts (requires `pip install scikit-learn`):
 * `pynn/regression.py`
 * `pynn/binary_classification.py`
 * `pynn/categorical_classification.py`
