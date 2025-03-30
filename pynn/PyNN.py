@@ -1,7 +1,7 @@
 import time
 import math
 import pickle
-#import cupy as cp
+import cupy as cp
 import numpy as np
 
 class PyNN():
@@ -230,6 +230,7 @@ class PyNN():
 		''' The Categorical Cross-Entropy loss '''
 		def forward(self, y_true, y_pred):
 			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
+			y_true = y_true.astype(int)
 			if len(y_true.shape) == 1:
 				y_pred_vector = y_pred[range(len(y_pred)), y_true]
 			elif len(y_true.shape) == 2:
@@ -237,6 +238,7 @@ class PyNN():
 			loss = -np.log(y_pred_vector)
 			return(loss)
 		def backward(self, y_true,  y_pred):
+			y_true = y_true.astype(int)
 			if len(y_true.shape) == 1:
 				y_true = np.eye(len(y_pred[0]))[y_true]
 			dy = (-y_true / y_pred) / len(y_pred)
@@ -259,6 +261,8 @@ class PyNN():
 		''' Accuracy for categorical classification models '''
 		def calc(self, y_true, y_pred):
 			predictions = np.argmax(y_pred, axis=1)
+			if len(y_true.shape) == 2:
+				y_true = np.argmax(y_true, axis=1)
 			accuracy = np.mean(predictions == y_true)
 			return(accuracy)
 	#---------- Optimisers ----------#
@@ -537,15 +541,3 @@ class PyNN():
 			args['accuracy_tests'] = accuracy_tests
 			args['time'] = Tend - Tstart
 			if verbose == 1 or verbose == 2: self.verbosity('Tests', args)
-
-
-
-
-
-
-'''
-[ ] MNIST dataset
-[ ] fasion MNIST
-'''
-
-

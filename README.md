@@ -129,6 +129,111 @@ model.train(
 
 # Train: epoch 10000/10000     Train Cost 0.00000 | Train Accuracy 0.98200 | 0s
 ```
+```
+# ----- MNIST -----#
+import sklearn
+
+np.random.seed(42)
+# Download the dataset https://git-disl.github.io/GTDLBench/datasets/mnist_datasets/
+# unzip the dataset
+
+X_train = np.genfromtxt('/home/slurm/Desktop/mnist_train.csv', delimiter=',')
+X_tests = np.genfromtxt('/home/slurm/Desktop/mnist_test.csv', delimiter=',')
+
+Y_train = X_train[:,0 ] # (60000, 784)
+X_train = X_train[:,1:] # (60000,)
+Y_tests = X_tests[:,0 ] # (10000, 784)
+X_tests = X_tests[:,1:] # (10000,)
+
+# Shuffle datasets
+X_train, Y_train = sklearn.utils.shuffle(X_train, Y_train)
+X_tests, Y_tests = sklearn.utils.shuffle(X_tests, Y_tests)
+
+X_train, X_valid, Y_train, Y_valid = sklearn.model_selection.train_test_split(X_train, Y_train, train_size=50000)
+
+# Scale images to a [0, 1] range
+X_train = X_train.astype("float32") / 255
+X_valid = X_tests.astype("float32") / 255
+X_tests = X_tests.astype("float32") / 255
+
+# Ensure Y labels are integers
+Y_train = Y_train.astype(int)
+Y_valid = Y_valid.astype(int)
+Y_tests = Y_tests.astype(int)
+
+# One-hot encoding
+Y_train = np.reshape(Y_train, (Y_train.shape[0], 1))
+Y_train = sklearn.preprocessing.OneHotEncoder().fit(Y_train).transform(Y_train).toarray()
+Y_valid = np.reshape(Y_valid, (Y_valid.shape[0], 1))
+Y_valid = sklearn.preprocessing.OneHotEncoder().fit(Y_valid).transform(Y_valid).toarray()
+Y_tests = np.reshape(Y_tests, (Y_tests.shape[0], 1))
+Y_tests = sklearn.preprocessing.OneHotEncoder().fit(Y_tests).transform(Y_tests).toarray()
+
+model = PyNN()
+model.add(model.Dense(784, 256))
+model.add(model.ReLU())
+model.add(model.Dropout(0.45))
+model.add(model.Dense(256, 256))
+model.add(model.ReLU())
+model.add(model.Dropout(0.45))
+model.add(model.Dense(256, 10))
+model.add(model.Softmax())
+
+model.show()
+
+model.train(
+	X_train=X_train, Y_train=Y_train,
+#	X_valid=X_valid, Y_valid=Y_valid,
+	X_tests=X_tests, Y_tests=Y_tests,
+	batch_size=128,
+	loss='cce',
+	accuracy='categorical',
+	optimiser='adam', lr=1e-4, decay=5e-7, beta1=0.9, beta2=0.999, e=1e-7,
+	early_stop=False,
+	epochs=20,
+	verbose=2)
+```
+
+The training output
+```
+PyNN is running on CPU
+------------------------------------------------------------
+Layer                    Shape                    Parameters
+------------------------------------------------------------
+Dense                    (784, 256)               200704
+ReLU                                              
+Dropout                                           
+Dense                    (256, 256)               65536
+ReLU                                              
+Dropout                                           
+Dense                    (256, 10)                2560
+Softmax                                           
+------------------------------
+Total Parameters: 268,800
+
+Train: epoch 1/20            Train Cost 0.48725 | Train Accuracy 0.87276 | 64s
+Train: epoch 2/20            Train Cost 0.39401 | Train Accuracy 0.89286 | 65s
+Train: epoch 3/20            Train Cost 0.35661 | Train Accuracy 0.90144 | 64s
+Train: epoch 4/20            Train Cost 0.33407 | Train Accuracy 0.90622 | 64s
+Train: epoch 5/20            Train Cost 0.31704 | Train Accuracy 0.91050 | 63s
+Train: epoch 6/20            Train Cost 0.30317 | Train Accuracy 0.91410 | 73s
+Train: epoch 7/20            Train Cost 0.29148 | Train Accuracy 0.91668 | 75s
+Train: epoch 8/20            Train Cost 0.28183 | Train Accuracy 0.91930 | 64s
+Train: epoch 9/20            Train Cost 0.27278 | Train Accuracy 0.92144 | 66s
+Train: epoch 10/20           Train Cost 0.26523 | Train Accuracy 0.92314 | 65s
+Train: epoch 11/20           Train Cost 0.25826 | Train Accuracy 0.92512 | 64s
+Train: epoch 12/20           Train Cost 0.25108 | Train Accuracy 0.92710 | 66s
+Train: epoch 13/20           Train Cost 0.24474 | Train Accuracy 0.92898 | 64s
+Train: epoch 14/20           Train Cost 0.23927 | Train Accuracy 0.93002 | 64s
+Train: epoch 15/20           Train Cost 0.23328 | Train Accuracy 0.93200 | 67s
+Train: epoch 16/20           Train Cost 0.22803 | Train Accuracy 0.93334 | 68s
+Train: epoch 17/20           Train Cost 0.22293 | Train Accuracy 0.93480 | 62s
+Train: epoch 18/20           Train Cost 0.21819 | Train Accuracy 0.93604 | 65s
+Train: epoch 19/20           Train Cost 0.21306 | Train Accuracy 0.93750 | 64s
+Train: epoch 20/20           Train Cost 0.20835 | Train Accuracy 0.93862 | 63s
+Tests:                       Tests Cost 0.20469 | Tests Accuracy 0.93840 | 1s
+```
+
 Saving the model and performing a prediction:
 ```py
 # Save the model
