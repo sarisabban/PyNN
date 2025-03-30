@@ -1,3 +1,4 @@
+import numpy as np
 from pynn import *
 
 np.random.seed(42)

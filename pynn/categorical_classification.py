@@ -1,3 +1,4 @@
+import numpy as np
 from pynn import *
 
 np.random.seed(42)
@@ -15,7 +16,7 @@ def spiral_data(samples, classes):
 
 X, Y = spiral_data(samples=100, classes=3)
 
-model = pynn.PyNN()
+model = PyNN()
 model.add(model.Dense(2, 64, alg='glorot uniform'))
 model.add(model.LeakyReLU(alpha=0.05))
 model.add(model.Dense(64, 3, alg='glorot uniform'))

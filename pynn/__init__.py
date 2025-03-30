@@ -1,1 +1,1 @@
-from .pynn import *
+from .PyNN import *

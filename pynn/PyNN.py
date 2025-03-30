@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 
 try: import cupy as cp
-else: pass
+except: pass
 
 class PyNN():
 	''' Lightweight NumPy-based neural network library '''

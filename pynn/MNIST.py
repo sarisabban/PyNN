@@ -1,6 +1,6 @@
-from pynn import *
-
 import sklearn
+import numpy as np
+from pynn import *
 
 np.random.seed(42)
 # Download the dataset https://git-disl.github.io/GTDLBench/datasets/mnist_datasets/
