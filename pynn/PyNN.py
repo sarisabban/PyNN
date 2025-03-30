@@ -120,11 +120,11 @@ class PyNN():
 			At = f'{self.G}Tests Accuracy {self.O}{Atests:.5f}{self.r}'
 			string = f'{S:<37} {Ct} {h} {At} {h} {t}'
 			print(string)
-	def save(self, path='./model'):
+	def save(self, path='./model.pkl'):
 		''' Save model '''
 		with open(f'{path}.pkl', 'wb') as f:
 			pickle.dump(self.layers, f)
-	def load(self, path='./model'):
+	def load(self, path='./model.pkl'):
 		''' Load model '''
 		with open(f'{path}.pkl', 'rb') as f:
 			self.layers = pickle.load(f)
