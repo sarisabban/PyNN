@@ -24,7 +24,7 @@ pip install git+https://github.com/sarisabban/PyNN
 ```
 or if you have a GPU and want the GPU acceleration installation
 ```
-pip install git+https://github.com/sarisabban/PyNN[gpu]
+pip install git+https://github.com/sarisabban/PyNN#egg=PyNN[gpu]
 ```
 
 ## Usage
