@@ -7,19 +7,24 @@ A lightweight NumPy-based neural network library
 PyNN is a simple and lightweight neural network library built using only NumPy (or CuPy for GPU acceleration). It provides all the basic frameworks for constructing, training, and evaluating neural networks.
 
 ## Features
-* Layers: Dense
-* Activation function: Step, Linear, Sigmoid, ReLU, Leaky ReLU, TanH, Softmax
-* Loss functions: MSE, MAE, BCE, CCE
-* Accuracy functions: Regression, binary, categorical
-* Optimisers: SGD, adagrad, RMSprop, adam
-* Regularisation: L1L2, dropout, batch normalisation
-* Weight initialisation algorithms:zeros, ones, random, glorot, he
-* Saving/loading a model
-* GPU acceleration
+* **Layers:** Dense
+* **Activation function:** Step, Linear, Sigmoid, ReLU, Leaky ReLU, TanH, Softmax
+* **Loss functions:** MSE, MAE, BCE, CCE
+* **Accuracy functions:** Regression, binary, categorical
+* **Optimisers:** SGD, adagrad, RMSprop, adam
+* **Regularisation:** L1L2, dropout, batch normalisation
+* **Weight initialisation algorithms:** zeros, ones, random, glorot, he
+* **Saving/loading a model**
+* **GPU acceleration**
 
 ## Installation
+If you want a normal installation using this commandd
 ```
 pip install git+https://github.com/sarisabban/PyNN
+```
+or if you have a GPU and want the GPU acceleration installation
+```
+pip install git+https://github.com/sarisabban/PyNN[gpu]
 ```
 
 ## Usage

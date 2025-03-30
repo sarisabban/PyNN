@@ -1,0 +1,30 @@
+[project]
+name = "PyNN"
+description = "A Lightweight NumPy-based neural network library"
+readme = "README.md"
+authors = [{name = "Sari Sabban", email = ""}]
+license = "MIT"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",]
+requires-python = ">= 3.9"
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+gpu = ["cupy"]
+
+[project.urls]
+"Source code" = "https://github.com/sarisabban/PyNN"
+"Issue tracker" = "https://github.com/sarisabban/PyNN/issues"
+
+[tool.setuptools.dynamic]
+version.attr = "PyNN.__version__"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
