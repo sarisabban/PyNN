@@ -2,7 +2,7 @@
 name = "PyNN"
 description = "A Lightweight NumPy-based neural network library"
 readme = "README.md"
-authors = [{name = "Sari Sabban", email = ""}]
+authors = [{name = "Sari Sabban"}]
 license = "MIT"
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
