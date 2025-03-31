@@ -66,7 +66,7 @@ class PyNN():
 		def check(self, epoch, loss):
 			if loss < self.best_loss - self.min_delta: self.best_loss = loss
 			if epoch > 1 and abs(loss - self.best_loss) < self.min_delta:
-				print('{self.R}Early Stop: Training loss plateaued{self.r}')
+				print(f'{self.R}Early Stop: Training loss plateaued{self.r}')
 				return(True)
 			return(False)
 	def show(self):
@@ -223,6 +223,7 @@ class PyNN():
 		def forward(self, y_true, y_pred):
 			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
 			loss = -(y_true*np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+			loss = np.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
 			return(loss)
 		def backward(self, y_true,  y_pred):
 			y_pred = np.clip(y_pred, 1e-7, 1 - 1e-7)
@@ -238,6 +239,7 @@ class PyNN():
 			elif len(y_true.shape) == 2:
 				y_pred_vector = np.sum(y_pred * y_true, axis=1)
 			loss = -np.log(y_pred_vector)
+			loss = np.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
 			return(loss)
 		def backward(self, y_true,  y_pred):
 			y_true = y_true.astype(int)
@@ -377,7 +379,7 @@ class PyNN():
 				b = math.sqrt(6) / (math.sqrt(inputs + outputs))
 				w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
 			elif alg.lower() == 'he normal':
-				sd = 2 / (math.sqrt(inputs))
+				sd = 2 / (math.sqrt(inputs + outputs))
 				w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
 			elif alg.lower() == 'he uniform':
 				a = - math.sqrt(6) / (math.sqrt(inputs))
@@ -509,7 +511,9 @@ class PyNN():
 			# Evaluate training set
 			y_true = Y_train
 			y_pred = self.predict(X_train)
-			cost_train = self.cost(loss_fn.forward(y_true, y_pred))
+			L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
+			L1L2 = sum(L1L2)
+			cost_train = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
 			accuracy_train = acc.calc(y_true, y_pred)
 			Eend = time.process_time()
 			args['cost_train'] = cost_train
@@ -522,7 +526,9 @@ class PyNN():
 				Vstart = time.process_time()
 				y_true = Y_valid
 				y_pred = self.predict(X_valid)
-				cost_valid = self.cost(loss_fn.forward(y_true, y_pred))
+				L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
+				L1L2 = sum(L1L2)
+				cost_valid = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
 				accuracy_valid = acc.calc(y_true, y_pred)
 				Vend = time.process_time()
 				args['cost_valid'] = cost_valid
@@ -536,7 +542,9 @@ class PyNN():
 			Tstart = time.process_time()
 			y_true = Y_tests
 			y_pred = self.predict(X_tests)
-			cost_tests = self.cost(loss_fn.forward(y_true, y_pred))
+			L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
+			L1L2 = sum(L1L2)
+			cost_tests = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
 			accuracy_tests = acc.calc(y_true, y_pred)
 			Tend = time.process_time()
 			args['cost_tests'] = cost_tests
