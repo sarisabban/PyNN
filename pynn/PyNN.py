@@ -66,7 +66,7 @@ class PyNN():
 		def check(self, epoch, loss):
 			if loss < self.best_loss - self.min_delta: self.best_loss = loss
 			if epoch > 1 and abs(loss - self.best_loss) < self.min_delta:
-				print(f'{self.R}Early Stop: Training loss plateaued{self.r}')
+				print(f'\033[31mEarly Stop: Training loss plateaued\033[0m')
 				return(True)
 			return(False)
 	def show(self):
