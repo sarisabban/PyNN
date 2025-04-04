@@ -72,5 +72,16 @@ You can run the following banchmark scripts (requires `pip install scikit-learn`
 Feel free to contribute by submitting issues or pull requests. Ensure your code follows best practices and includes tests.
 
 ## TODO:
-* Add CNN layer
-* Add transformer layer
+Study and build architectures:
+* (done)           Dense
+* (study + build)  CNN VGG16
+* (study + build)  CNN ResNet
+* (just build)     GAN
+* (just build)     PointNet
+* (just build)     YOLOv8     - object detection
+* (just build)     U-net      - semantic detection
+* (just build)     mask r cnn - instance segmentation
+* (study + build)  Diffusion
+* (study + build)  Transformer + LLMs + other related architectures (BERT, GPT, ViT)
+?. (study + build) Reinforcement learning PPO clean RL
+?. (study + build) Reinforcement learning DQN clean RL
