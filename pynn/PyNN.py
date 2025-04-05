@@ -77,7 +77,7 @@ class PyNN():
 		total_params = 0
 		for layer in self.layers:
 			name = layer.__class__.__name__
-			if isinstance(layer, (self.Dense)):
+			if isinstance(layer, (self.Dense, self.Reshape)):
 				shape = layer.w.shape
 				params = math.prod(shape)
 				total_params += params
@@ -353,6 +353,17 @@ class PyNN():
 			* (self.z - self.mean) * np.sum(dy*(self.z - self.mean), axis=0))
 			return(self.dz)
 	#---------- Layers ----------#
+	class Reshape():
+		''' Reshape a layer '''
+		def __init__(self, input_shape, output_shape):
+			self.input_shape = input_shape
+			self.output_shape = output_shape
+		def forward(self, x):
+			new_x = np.reshape(x, self.output.shape)
+			return(new_x)
+		def backward(self, dz):
+			new_dz = np.reshape(dz, self.input_shape)
+			return(new_dz)
 	class Dense():
 		''' A dense layer '''
 		def __init__(self, inputs=1, outputs=1,
