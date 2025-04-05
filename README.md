@@ -63,10 +63,7 @@ model.predict(X_VALUE)                # Perform a prediction
 ```
 
 You can run the following banchmark scripts (requires `pip install scikit-learn`):
-* `pynn/regression.py`
-* `pynn/binary_classification.py`
-* `pynn/categorical_classification.py`
-* `pynn/MNIST.py`
+* `python ./PyNN/pynn/benckmark.py [all, binary, categorical, regression, mnist]`
 
 ## Contributing
 Feel free to contribute by submitting issues or pull requests. Ensure your code follows best practices and includes tests.
@@ -83,5 +80,5 @@ Study and build architectures:
 * (just build)     mask r cnn - instance segmentation
 * (study + build)  Diffusion
 * (study + build)  Transformer + LLMs + other related architectures (BERT, GPT, ViT)
-?. (study + build) Reinforcement learning PPO clean RL
-?. (study + build) Reinforcement learning DQN clean RL
+(study + build) Reinforcement learning PPO clean RL
+(study + build) Reinforcement learning DQN clean RL
