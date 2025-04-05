@@ -77,7 +77,8 @@ class PyNN():
 		total_params = 0
 		for layer in self.layers:
 			name = layer.__class__.__name__
-			if isinstance(layer, (self.Dense, self.Reshape)):
+			track = (self.Dense, self.Reshape, self.Flatten)
+			if isinstance(layer, track):
 				shape = layer.w.shape
 				params = math.prod(shape)
 				total_params += params
@@ -130,10 +131,6 @@ class PyNN():
 		''' Load model '''
 		with open(f'{path}.pkl', 'rb') as f:
 			self.layers = pickle.load(f)
-	def flatten(self, X):
-		''' Flattens a layer to 1D '''
-		X = X.flatten()
-		return(X)
 	#---------- Activation Functions ----------#
 	class Step():
 		''' The Step activation function (for binary classification) '''
@@ -353,16 +350,22 @@ class PyNN():
 			* (self.z - self.mean) * np.sum(dy*(self.z - self.mean), axis=0))
 			return(self.dz)
 	#---------- Layers ----------#
+	def Flatten(self, X):
+		''' Flattens a layer to 1D '''
+		X = X.flatten()
+		return(X)
 	class Reshape():
 		''' Reshape a layer '''
 		def __init__(self, input_shape, output_shape):
 			self.input_shape = input_shape
 			self.output_shape = output_shape
 		def forward(self, x):
-			new_x = np.reshape(x, self.output.shape)
+			if   self.chip == 'CPU': new_x = np.reshape(x, self.output_shape)
+			elif self.chip == 'GPU': new_x = cp.reshape(x, self.output_shape)
 			return(new_x)
 		def backward(self, dz):
-			new_dz = np.reshape(dz, self.input_shape)
+			if   self.chip == 'CPU': new_dz = np.reshape(dz, self.input_shape)
+			elif self.chip == 'GPU': new_dz = cp.reshape(dz, self.input_shape)
 			return(new_dz)
 	class Dense():
 		''' A dense layer '''
