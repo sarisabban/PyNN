@@ -27,9 +27,15 @@ class PyNN():
 			self.chip = 'CPU'
 		print(f'\x1B[3m\033[1m{self.P}PyNN{self.r} ', end='')
 		print(f'is running on {self.g}{self.chip}{self.r}')
+		self.track = (
+			self.Dense,
+			self.Reshape,
+			self.Flatten,
+			self.MaxPool,
+			self.AveragePool)
 	def add(self, layer):
 		''' Add a layer to the network '''
-		if isinstance(layer, self.Dense):
+		if isinstance(layer, self.track):
 			layer.chip = self.chip
 		self.layers.append(layer)
 	def shuffle_data(self, X, Y):
@@ -77,13 +83,7 @@ class PyNN():
 		total_params = 0
 		for layer in self.layers:
 			name = layer.__class__.__name__
-			track = (
-				self.Dense,
-				self.Reshape,
-				self.Flatten,
-				self.MaxPool,
-				self.AveragePool)
-			if isinstance(layer, track):
+			if isinstance(layer, self.track):
 				shape = layer.w.shape
 				params = math.prod(shape)
 				total_params += params
@@ -136,6 +136,31 @@ class PyNN():
 		''' Load model '''
 		with open(f'{path}.pkl', 'rb') as f:
 			self.layers = pickle.load(f)
+	def ParamInit(self, inputs, outputs, alg, mean, sd, a, b):
+		''' Parameter initialisation function '''
+		if alg.lower() == 'zeros':
+			w = np.zeros((inputs, outputs))
+		elif alg.lower() == 'ones':
+			w = np.ones((inputs, outputs))
+		elif alg.lower() == 'random normal':
+			w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
+		elif alg.lower() == 'random uniform':
+			w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
+		elif alg.lower() == 'glorot normal':
+			sd = 1 / (math.sqrt(inputs + outputs))
+			w =  np.random.normal(loc=mean, scale=sd, size=(inputs,outputs))
+		elif alg.lower() == 'glorot uniform':
+			a = - math.sqrt(6) / (math.sqrt(inputs + outputs))
+			b = math.sqrt(6) / (math.sqrt(inputs + outputs))
+			w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
+		elif alg.lower() == 'he normal':
+			sd = 2 / (math.sqrt(inputs + outputs))
+			w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
+		elif alg.lower() == 'he uniform':
+			a = - math.sqrt(6) / (math.sqrt(inputs))
+			b = math.sqrt(6) / (math.sqrt(inputs))
+			w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
+		return(w)
 	#---------- Activation Functions ----------#
 	class Step():
 		''' The Step activation function (for binary classification) '''
@@ -377,6 +402,16 @@ class PyNN():
 			if   self.chip == 'CPU': new_dz = np.reshape(dz, self.input_shape)
 			elif self.chip == 'GPU': new_dz = cp.reshape(dz, self.input_shape)
 			return(new_dz)
+
+
+
+
+
+
+
+
+
+
 	class MaxPool():
 		''' A max pooling layer '''
 		def __init__(self, pool_size=(2, 2), stride=(2, 2), mode='2D'):
@@ -528,46 +563,30 @@ class PyNN():
 					j * self.stride[1] + np.arange(self.pool_size[1])] = \
 					dz[i, j] / self.pool_size[0] / self.pool_size[1]
 			return(dx)
+
+
+
+
+
+
+
+
+
+
 	class Dense():
 		''' A dense layer '''
 		def __init__(self, inputs=1, outputs=1,
 					alg='glorot uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
 					l1w=0, l1b=0, l2w=0, l2b=0):
-			''' Initialise parameters '''
+			self.w = PyNN.ParamInit(PyNN, inputs, outputs, alg, mean, sd, a, b)
 			self.l1w, self.l1b, self.l2w, self.l2b = l1w, l1b, l2w, l2b
-			self.Parameters(inputs, outputs, alg, mean, sd, a, b)
-		def Parameters(self, inputs, outputs, alg, mean, sd, a, b):
-			''' Parameter initialisation function '''
-			if alg.lower() == 'zeros':
-				w = np.zeros((inputs, outputs))
-			elif alg.lower() == 'ones':
-				w = np.ones((inputs, outputs))
-			elif alg.lower() == 'random normal':
-				w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
-			elif alg.lower() == 'random uniform':
-				w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
-			elif alg.lower() == 'glorot normal':
-				sd = 1 / (math.sqrt(inputs + outputs))
-				w =  np.random.normal(loc=mean, scale=sd, size=(inputs,outputs))
-			elif alg.lower() == 'glorot uniform':
-				a = - math.sqrt(6) / (math.sqrt(inputs + outputs))
-				b = math.sqrt(6) / (math.sqrt(inputs + outputs))
-				w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
-			elif alg.lower() == 'he normal':
-				sd = 2 / (math.sqrt(inputs + outputs))
-				w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
-			elif alg.lower() == 'he uniform':
-				a = - math.sqrt(6) / (math.sqrt(inputs))
-				b = math.sqrt(6) / (math.sqrt(inputs))
-				w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
-			self.w = w
 			self.b = np.zeros((1, outputs))
 			self.beta = np.zeros((1, outputs))
 			self.gamma = np.ones((1, outputs))
-			self.w_m = np.zeros_like(w)
-			self.w_c = np.zeros_like(w)
-			self.b_m = np.zeros_like(b)
-			self.b_c = np.zeros_like(b)
+			self.w_m = np.zeros_like(self.w)
+			self.w_c = np.zeros_like(self.w)
+			self.b_m = np.zeros_like(self.b)
+			self.b_c = np.zeros_like(self.b)
 		def forward(self, x):
 			self.x = x
 			if self.chip == 'CPU':
@@ -769,4 +788,4 @@ def run_categorical_classification():
         epochs=2000,
         verbose=1)
 
-run_categorical_classification()
+run_categorical_classification() # Train Cost 0.16705 | Train Accuracy 0.94333
