@@ -31,8 +31,7 @@ class PyNN():
 			self.Dense,
 			self.Reshape,
 			self.Flatten,
-			self.MaxPool,
-			self.AveragePool)
+			self.Pool)
 	def add(self, layer):
 		''' Add a layer to the network '''
 		if isinstance(layer, self.track):
@@ -402,177 +401,99 @@ class PyNN():
 			if   self.chip == 'CPU': new_dz = np.reshape(dz, self.input_shape)
 			elif self.chip == 'GPU': new_dz = cp.reshape(dz, self.input_shape)
 			return(new_dz)
-
-
-
-
-
-
-
-
-
-
-	class MaxPool():
-		''' A max pooling layer '''
-		def __init__(self, pool_size=(2, 2), stride=(2, 2), mode='2D'):
-			self.pool_size = pool_size
+	class Pool():
+		''' A pooling layer '''
+		def __init__(self, pool=(2, 2), stride=(2, 2), dim='2D', alg='max'):
+			self.pool = pool
 			self.stride = stride
-			self.mode = mode
+			self.dim = dim
+			self.alg = alg.lower()
 		def forward(self, x):
 			self.x = x
-			if   self.mode == '1D': return(self.forward1D(x))
-			elif self.mode == '2D': return(self.forward2D(x))
-			elif self.mode == '3D': return(self.forward3D(x))
+			if   self.dim == '1D': return(self.forward1D(x))
+			elif self.dim == '2D': return(self.forward2D(x))
+			elif self.dim == '3D': return(self.forward3D(x))
 		def backward(self, dz):
-			if   self.mode == '1D': return(self.backward1D(dz))
-			elif self.mode == '2D': return(self.backward2D(dz))
-			elif self.mode == '3D': return(self.backward3D(dz))
+			if   self.dim == '1D': return(self.backward1D(dz))
+			elif self.dim == '2D': return(self.backward2D(dz))
+			elif self.dim == '3D': return(self.backward3D(dz))
 		def forward1D(self, x):
-			output_length = (x.shape[0] - self.pool_size) // self.stride + 1
-			windows = np.lib.stride_tricks.as_strided(x,
-				shape=(output_length, self.pool_size),
+			output_length = (x.shape[0] - self.pool) // self.stride + 1
+			self.windows = np.lib.stride_tricks.as_strided(x,
+				shape=(output_length, self.pool),
 				strides=(x.strides[0] * self.stride, x.strides[0]))
-			output = np.max(windows, axis=1)
-			self.windows = windows
+			if   self.alg == 'max': output = np.max(self.windows, axis=1)
+			elif self.alg == 'avg': output = np.mean(self.windows, axis=1)
 			return(output)
 		def backward1D(self, dz):
 			dx = np.zeros_like(self.x)
 			for i in range(dz.shape[0]):
 				window = self.windows[i]
-				max_pos = np.argmax(window)
-				dx[i * self.stride + max_pos] = dz[i]
+				if self.alg == 'max':
+					max_pos = np.argmax(window)
+					dx[i * self.stride + max_pos] = dz[i]
+				elif self.alg == 'avg':
+					avg_val = np.mean(window)
+					dx[i*self.stride+np.arange(self.pool)] = dz[i]/self.pool
 			return(dx)
 		def forward2D(self, x):
 			h, w = x.shape
-			ph, pw = self.pool_size
+			ph, pw = self.pool
 			stride_h, stride_w = self.stride
 			out_h = (h - ph) // stride_h + 1
 			out_w = (w - pw) // stride_w + 1
-			windows = np.lib.stride_tricks.as_strided(x,
+			self.windows = np.lib.stride_tricks.as_strided(x,
 				shape=(out_h, out_w, ph, pw),
 				strides=(x.strides[0] * stride_h, x.strides[1] * stride_w,
 				x.strides[0], x.strides[1]))
-			output = np.max(windows, axis=(2, 3))
-			self.windows = windows
+			if   self.alg == 'max': output = np.max(self.windows, axis=(2, 3))
+			elif self.alg == 'avg': output = np.mean(self.windows, axis=(2, 3))
 			return(output)
 		def backward2D(self, dz):
 			dx = np.zeros_like(self.x)
 			for i in range(dz.shape[0]):
 				for j in range(dz.shape[1]):
 					window = self.windows[i, j]
-					max_pos = np.unravel_index(np.argmax(window), window.shape)
-					dx[i * self.stride[0] + max_pos[0],
-					j * self.stride[1] + max_pos[1]] = dz[i, j]
+					if  self.alg == 'max':
+						max_pos = np.unravel_index(np.argmax(window), \
+						window.shape)
+						dx[i * self.stride[0] + max_pos[0],
+						j * self.stride[1] + max_pos[1]] = dz[i, j]
+					elif self.alg == 'avg':
+						avg_val = np.mean(window)
+						dx[i * self.stride[0] + np.arange(self.pool[0]),
+						j * self.stride[1] + np.arange(self.pool[1])] = \
+						dz[i, j] / self.pool[0] / self.pool[1]
 			return(dx)
 		def forward3D(self, x):
 			c, h, w = x.shape
-			p_h, p_w = self.pool_size
+			p_h, p_w = self.pool
 			stride_h, stride_w = self.stride
 			out_h = (h - p_h) // stride_h + 1
 			out_w = (w - p_w) // stride_w + 1
-			windows = np.lib.stride_tricks.as_strided(x,
+			self.windows = np.lib.stride_tricks.as_strided(x,
 				shape=(c, out_h, out_w, p_h, p_w),
 				strides=(x.strides[0], x.strides[1] * stride_h,
 				x.strides[2] * stride_w, x.strides[1], x.strides[2]))
-			output = np.max(windows, axis=(3, 4))
-			self.windows = windows
+			if   self.alg == 'max': output = np.max(self.windows, axis=(3, 4))
+			elif self.alg == 'avg': output = np.mean(self.windows, axis=(3, 4))
 			return(output)
 		def backward3D(self, dz):
 			dx = np.zeros_like(self.x)
 			for i in range(dz.shape[0]):
 				for j in range(dz.shape[1]):
 					window = self.windows[i, j]
-					max_pos = np.unravel_index(np.argmax(window), window.shape)
-					dx[i, j * self.stride[0] + max_pos[0],
-					j * self.stride[1] + max_pos[1]] = dz[i, j]
+					if self.alg == 'max':
+						max_pos = np.unravel_index(np.argmax(window), \
+						window.shape)
+						dx[i, j * self.stride[0] + max_pos[0],
+						j * self.stride[1] + max_pos[1]] = dz[i, j]
+					elif self.alg == 'avg':
+						avg_val = np.mean(window)
+						dx[i, j * self.stride[0] + np.arange(self.pool[0]),
+							j * self.stride[1] + np.arange(self.pool[1])] = \
+							dz[i, j] / self.pool[0] / self.pool[1]
 			return(dx)
-	class AveragePool():
-		''' An average pooling layer '''
-		def __init__(self, pool_size=(2, 2), stride=(2, 2), mode='2D'):
-			self.pool_size = pool_size
-			self.stride = stride
-			self.mode = mode
-		def forward(self, x):
-			self.x = x
-			if   self.mode == '1D': return(self.forward1D(x))
-			elif self.mode == '2D': return(self.forward2D(x))
-			elif self.mode == '3D': return(self.forward3D(x))
-		def backward(self, dz):
-			if   self.mode == '1D': return(self.backward1D(dz))
-			elif self.mode == '2D': return(self.backward2D(dz))
-			elif self.mode == '3D': return(self.backward3D(dz))
-		def forward1D(self, x):
-			output_length = (x.shape[0] - self.pool_size) // self.stride + 1
-			windows = np.lib.stride_tricks.as_strided(x,
-				shape=(output_length, self.pool_size),
-				strides=(x.strides[0] * self.stride, x.strides[0]))
-			output = np.mean(windows, axis=1)
-			self.windows = windows
-			return(output)
-		def backward1D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				window = self.windows[i]
-				avg_val = np.mean(window)
-				dx[i * self.stride + np.arange(self.pool_size)] = \
-				dz[i] / self.pool_size
-			return(dx)
-		def forward2D(self, x):
-			h, w = x.shape
-			ph, pw = self.pool_size
-			stride_h, stride_w = self.stride
-			out_h = (h - ph) // stride_h + 1
-			out_w = (w - pw) // stride_w + 1
-			windows = np.lib.stride_tricks.as_strided(x,
-				shape=(out_h, out_w, ph, pw),
-				strides=(x.strides[0] * stride_h, x.strides[1] * stride_w,
-				x.strides[0], x.strides[1]))
-			output = np.mean(windows, axis=(2, 3))
-			self.windows = windows
-			return(output)
-		def backward2D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				for j in range(dz.shape[1]):
-					window = self.windows[i, j]
-					avg_val = np.mean(window)
-					dx[i * self.stride[0] + np.arange(self.pool_size[0]),
-					j * self.stride[1] + np.arange(self.pool_size[1])] = \
-					dz[i, j] / self.pool_size[0] / self.pool_size[1]
-			return(dx)
-		def forward3D(self, x):
-			c, h, w = x.shape
-			p_h, p_w = self.pool_size
-			stride_h, stride_w = self.stride
-			out_h = (h - p_h) // stride_h + 1
-			out_w = (w - p_w) // stride_w + 1
-			windows = np.lib.stride_tricks.as_strided(x,
-				shape=(c, out_h, out_w, p_h, p_w),
-				strides=(x.strides[0], x.strides[1] * stride_h,
-				x.strides[2] * stride_w, x.strides[1], x.strides[2]))
-			output = np.mean(windows, axis=(3, 4))
-			self.windows = windows
-			return(output)
-		def backward3D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				for j in range(dz.shape[1]):
-					window = self.windows[i, j]
-					avg_val = np.mean(window)
-					dx[i, j * self.stride[0] + np.arange(self.pool_size[0]),
-					j * self.stride[1] + np.arange(self.pool_size[1])] = \
-					dz[i, j] / self.pool_size[0] / self.pool_size[1]
-			return(dx)
-
-
-
-
-
-
-
-
-
-
 	class Dense():
 		''' A dense layer '''
 		def __init__(self, inputs=1, outputs=1,
