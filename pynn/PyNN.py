@@ -78,7 +78,10 @@ class PyNN():
 		for layer in self.layers:
 			name = layer.__class__.__name__
 			track = (
-				self.Dense, self.Reshape, self.Flatten, self.MaxPool,
+				self.Dense,
+				self.Reshape,
+				self.Flatten,
+				self.MaxPool,
 				self.AveragePool)
 			if isinstance(layer, track):
 				shape = layer.w.shape
@@ -352,10 +355,15 @@ class PyNN():
 			* (self.z - self.mean) * np.sum(dy*(self.z - self.mean), axis=0))
 			return(self.dz)
 	#---------- Layers ----------#
-	def Flatten(self, X):
+	class Flatten():
 		''' Flattens a layer to 1D '''
-		X = X.flatten()
-		return(X)
+		def forward(self, x):
+			self.input_shape = x.shape
+			new_x = x.reshape(x.shape[0], -1)
+			return(new_x)
+		def backward(self, dz):
+			new_dz = dz.reshape(self.input_shape)
+			return(new_dz)
 	class Reshape():
 		''' Reshape a layer '''
 		def __init__(self, input_shape, output_shape):
@@ -718,3 +726,47 @@ class PyNN():
 			args['accuracy_tests'] = accuracy_tests
 			args['time'] = Tend - Tstart
 			if verbose == 1 or verbose == 2: self.verbosity('Tests', args)
+
+
+
+
+
+
+
+np.random.seed(42)
+
+def spiral_data(samples, classes):
+    X = np.zeros((samples*classes, 2))
+    Y = np.zeros(samples*classes, dtype='uint8')
+    for class_n in range(classes):
+        ix = range(samples*class_n, samples*(class_n+1))
+        r = np.linspace(0.0, 1, samples)
+        t = np.linspace(class_n*4, (class_n+1)*4, samples) + np.random.randn(samples)*0.2
+        X[ix] = np.c_[r*np.sin(t*2.5), r*np.cos(t*2.5)]
+        Y[ix] = class_n
+    return X, Y
+
+def run_categorical_classification():
+    ''' Categorical classification benchmark '''
+    print('\nRunning Categorical Classification Example')
+    X, Y = spiral_data(samples=100, classes=3)
+
+    model = PyNN()
+    model.add(model.Dense(2, 64, alg='glorot uniform'))
+    model.add(model.LeakyReLU(alpha=0.05))
+    model.add(model.Dense(64, 3, alg='glorot uniform'))
+    model.add(model.Softmax())
+
+    model.show()
+
+    model.train(
+        X_train=X, Y_train=Y,
+        batch_size=None,
+        loss='cce',
+        accuracy='categorical',
+        optimiser='adam', lr=0.005, decay=5e-7, beta1=0.9, beta2=0.999, e=1e-7,
+        early_stop=False,
+        epochs=2000,
+        verbose=1)
+
+run_categorical_classification()
