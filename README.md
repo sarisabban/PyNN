@@ -71,6 +71,7 @@ Feel free to contribute by submitting issues or pull requests. Ensure your code 
 ## TODO:
 [X] Reshape
 [X] Maxpooling 1D, 2D, 3D
+[ ] Make sure everything uses GPU without CPU bottle necks
 [ ] Activation Function: GELU (Gaussian Error Linear Unit)
 [ ] Activation Function: SiLU (Swish)
 [ ] Loss Function: Perceptual Loss (LPIPS)
