@@ -3,6 +3,8 @@ import math
 import pickle
 import numpy as np
 
+np.random.seed(42)
+
 try: import cupy as cp
 except: pass
 
@@ -435,540 +437,6 @@ class PyNN():
 				self.dw += 2 * self.l2w * self.w
 				self.db += 2 * self.l2b * self.b
 			return(self.dx)
-
-	class Conv2D():
-		''' A 2D convolutional layer '''
-		def __init__(self, filters, kernel_size, stride=1, padding='valid',
-					alg='glorot uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
-					l1w=0, l1b=0, l2w=0, l2b=0):
-			''' Initialize parameters '''
-			self.filters = filters
-			self.kernel_size = kernel_size if isinstance(kernel_size, tuple) else (kernel_size, kernel_size)
-			self.stride = stride if isinstance(stride, tuple) else (stride, stride)
-			self.padding = padding
-			self.l1w, self.l1b, self.l2w, self.l2b = l1w, l1b, l2w, l2b
-			self.Parameters(alg, mean, sd, a, b)
-
-		def Parameters(self, alg, mean, sd, a, b):
-			''' Parameter initialization function '''
-			if alg.lower() == 'zeros':
-				w = np.zeros((self.filters, self.kernel_size[0], self.kernel_size[1], 1))
-			elif alg.lower() == 'ones':
-				w = np.ones((self.filters, self.kernel_size[0], self.kernel_size[1], 1))
-			elif alg.lower() == 'random normal':
-				w = np.random.normal(loc=mean, scale=sd, 
-					size=(self.filters, self.kernel_size[0], self.kernel_size[1], 1))
-			elif alg.lower() == 'random uniform':
-				w = np.random.uniform(low=a, high=b, 
-					size=(self.filters, self.kernel_size[0], self.kernel_size[1], 1))
-			elif alg.lower() == 'glorot normal':
-				sd = 1 / (math.sqrt(self.filters + self.kernel_size[0] * self.kernel_size[1]))
-				w = np.random.normal(loc=mean, scale=sd, 
-					size=(self.filters, self.kernel_size[0], self.kernel_size[1], 1))
-			elif alg.lower() == 'glorot uniform':
-				a = -math.sqrt(6) / (math.sqrt(self.filters + self.kernel_size[0] * self.kernel_size[1]))
-				b = math.sqrt(6) / (math.sqrt(self.filters + self.kernel_size[0] * self.kernel_size[1]))
-				w = np.random.uniform(low=a, high=b, 
-					size=(self.filters, self.kernel_size[0], self.kernel_size[1], 1))
-			elif alg.lower() == 'he normal':
-				sd = 2 / (math.sqrt(self.filters + self.kernel_size[0] * self.kernel_size[1]))
-				w = np.random.normal(loc=mean, scale=sd, 
-					size=(self.filters, self.kernel_size[0], self.kernel_size[1], 1))
-			elif alg.lower() == 'he uniform':
-				a = -math.sqrt(6) / (math.sqrt(self.filters))
-				b = math.sqrt(6) / (math.sqrt(self.filters))
-				w = np.random.uniform(low=a, high=b, 
-					size=(self.filters, self.kernel_size[0], self.kernel_size[1], 1))
-			self.w = w
-			self.b = np.zeros((self.filters, 1))
-			self.w_m = np.zeros_like(w)
-			self.w_c = np.zeros_like(w)
-			self.b_m = np.zeros_like(self.b)
-			self.b_c = np.zeros_like(self.b)
-
-		def forward(self, x):
-			''' Forward pass '''
-			self.x = x
-			self.batch_size = x.shape[0]
-			self.input_height = x.shape[1]
-			self.input_width = x.shape[2]
-			self.input_channels = x.shape[3]
-
-			# Calculate output dimensions
-			if self.padding == 'valid':
-				self.output_height = (self.input_height - self.kernel_size[0]) // self.stride[0] + 1
-				self.output_width = (self.input_width - self.kernel_size[1]) // self.stride[1] + 1
-			else:  # 'same' padding
-				self.output_height = self.input_height // self.stride[0]
-				self.output_width = self.input_width // self.stride[1]
-
-			# Initialize output
-			self.output = np.zeros((self.batch_size, self.output_height, 
-								  self.output_width, self.filters))
-
-			# Perform convolution
-			for i in range(self.output_height):
-				for j in range(self.output_width):
-					h_start = i * self.stride[0]
-				 h_end = h_start + self.kernel_size[0]
-					w_start = j * self.stride[1]
-					w_end = w_start + self.kernel_size[1]
-					
-					# Extract receptive field
-					receptive_field = self.x[:, h_start:h_end, w_start:w_end, :]
-					
-					# Convolve with each filter
-					for f in range(self.filters):
-						self.output[:, i, j, f] = np.sum(
-							receptive_field * self.w[f], 
-							axis=(1, 2, 3)
-						) + self.b[f]
-
-			# Add regularization terms
-			if self.chip == 'CPU':
-				self.L1w = self.l1w * np.sum(np.abs(self.w))
-				self.L1b = self.l1b * np.sum(np.abs(self.b))
-				self.L2w = self.l2w * np.sum(self.w**2)
-				self.L2b = self.l2b * np.sum(self.b**2)
-			elif self.chip == 'GPU':
-				self.L1w = self.l1w * cp.sum(np.abs(self.w))
-				self.L1b = self.l1b * cp.sum(np.abs(self.b))
-				self.L2w = self.l2w * cp.sum(self.w**2)
-				self.L2b = self.l2b * cp.sum(self.b**2)
-			self.L1L2 = self.L1w + self.L1b + self.L2w + self.L2b
-
-			return self.output
-
-		def backward(self, dy):
-			''' Backward pass '''
-			# Initialize gradients
-			self.dw = np.zeros_like(self.w)
-			self.db = np.sum(dy, axis=(0, 1, 2), keepdims=True)
-			dx = np.zeros_like(self.x)
-
-			# Compute gradients
-			for i in range(self.output_height):
-				for j in range(self.output_width):
-					h_start = i * self.stride[0]
-					h_end = h_start + self.kernel_size[0]
-					w_start = j * self.stride[1]
-					w_end = w_start + self.kernel_size[1]
-					
-					# Extract receptive field
-					receptive_field = self.x[:, h_start:h_end, w_start:w_end, :]
-					
-					# Update gradients
-					for f in range(self.filters):
-						self.dw[f] += np.sum(
-							receptive_field * dy[:, i:i+1, j:j+1, f:f+1],
-							axis=0
-						)
-						dx[:, h_start:h_end, w_start:w_end, :] += \
-							self.w[f] * dy[:, i:i+1, j:j+1, f:f+1]
-
-			# Add regularization gradients
-			if self.chip == 'CPU':
-				L1_dw = np.ones_like(self.w)
-				L1_dw[self.w < 0] = -1
-				self.dw += self.l1w * L1_dw
-				L1_db = np.ones_like(self.b)
-				L1_db[self.b < 0] = -1
-				self.db += self.l1b * L1_db
-				self.dw += 2 * self.l2w * self.w
-				self.db += 2 * self.l2b * self.b
-			elif self.chip == 'GPU':
-				L1_dw = cp.ones_like(self.w)
-				L1_dw[self.w < 0] = -1
-				self.dw += self.l1w * L1_dw
-				L1_db = cp.ones_like(self.b)
-				L1_db[self.b < 0] = -1
-				self.db += self.l1b * L1_db
-				self.dw += 2 * self.l2w * self.w
-				self.db += 2 * self.l2b * self.b
-
-			return dx
-
-	class LSTM():
-		''' A Long Short-Term Memory layer '''
-		def __init__(self, units, return_sequences=False,
-					alg='glorot uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
-					l1w=0, l1b=0, l2w=0, l2b=0):
-			''' Initialize parameters '''
-			self.units = units
-			self.return_sequences = return_sequences
-			self.l1w, self.l1b, self.l2w, self.l2b = l1w, l1b, l2w, l2b
-			self.Parameters(alg, mean, sd, a, b)
-
-		def Parameters(self, alg, mean, sd, a, b):
-			''' Parameter initialization function '''
-			# Initialize weights for input gate (i), forget gate (f), cell state (c), and output gate (o)
-			if alg.lower() == 'zeros':
-				self.wi = np.zeros((self.units, self.units))
-				self.wf = np.zeros((self.units, self.units))
-				self.wc = np.zeros((self.units, self.units))
-				self.wo = np.zeros((self.units, self.units))
-				self.ui = np.zeros((self.units, self.units))
-				self.uf = np.zeros((self.units, self.units))
-				self.uc = np.zeros((self.units, self.units))
-				self.uo = np.zeros((self.units, self.units))
-			elif alg.lower() == 'ones':
-				self.wi = np.ones((self.units, self.units))
-				self.wf = np.ones((self.units, self.units))
-				self.wc = np.ones((self.units, self.units))
-				self.wo = np.ones((self.units, self.units))
-				self.ui = np.ones((self.units, self.units))
-				self.uf = np.ones((self.units, self.units))
-				self.uc = np.ones((self.units, self.units))
-				self.uo = np.ones((self.units, self.units))
-			elif alg.lower() == 'random normal':
-				self.wi = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wf = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wc = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wo = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.ui = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uf = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uc = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uo = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-			elif alg.lower() == 'random uniform':
-				self.wi = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wf = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wc = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wo = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.ui = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uf = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uc = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uo = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-			elif alg.lower() == 'glorot normal':
-				sd = 1 / (math.sqrt(self.units + self.units))
-				self.wi = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wf = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wc = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wo = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.ui = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uf = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uc = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uo = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-			elif alg.lower() == 'glorot uniform':
-				a = -math.sqrt(6) / (math.sqrt(self.units + self.units))
-				b = math.sqrt(6) / (math.sqrt(self.units + self.units))
-				self.wi = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wf = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wc = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wo = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.ui = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uf = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uc = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uo = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-			elif alg.lower() == 'he normal':
-				sd = 2 / (math.sqrt(self.units + self.units))
-				self.wi = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wf = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wc = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.wo = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.ui = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uf = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uc = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-				self.uo = np.random.normal(loc=mean, scale=sd, size=(self.units, self.units))
-			elif alg.lower() == 'he uniform':
-				a = -math.sqrt(6) / (math.sqrt(self.units))
-				b = math.sqrt(6) / (math.sqrt(self.units))
-				self.wi = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wf = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wc = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.wo = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.ui = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uf = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uc = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-				self.uo = np.random.uniform(low=a, high=b, size=(self.units, self.units))
-
-			# Initialize biases
-			self.bi = np.zeros((1, self.units))
-			self.bf = np.zeros((1, self.units))
-			self.bc = np.zeros((1, self.units))
-			self.bo = np.zeros((1, self.units))
-
-			# Initialize momentum and cache for optimization
-			self.wi_m = np.zeros_like(self.wi)
-			self.wi_c = np.zeros_like(self.wi)
-			self.wf_m = np.zeros_like(self.wf)
-			self.wf_c = np.zeros_like(self.wf)
-			self.wc_m = np.zeros_like(self.wc)
-			self.wc_c = np.zeros_like(self.wc)
-			self.wo_m = np.zeros_like(self.wo)
-			self.wo_c = np.zeros_like(self.wo)
-			self.ui_m = np.zeros_like(self.ui)
-			self.ui_c = np.zeros_like(self.ui)
-			self.uf_m = np.zeros_like(self.uf)
-			self.uf_c = np.zeros_like(self.uf)
-			self.uc_m = np.zeros_like(self.uc)
-			self.uc_c = np.zeros_like(self.uc)
-			self.uo_m = np.zeros_like(self.uo)
-			self.uo_c = np.zeros_like(self.uo)
-			self.bi_m = np.zeros_like(self.bi)
-			self.bi_c = np.zeros_like(self.bi)
-			self.bf_m = np.zeros_like(self.bf)
-			self.bf_c = np.zeros_like(self.bf)
-			self.bc_m = np.zeros_like(self.bc)
-			self.bc_c = np.zeros_like(self.bc)
-			self.bo_m = np.zeros_like(self.bo)
-			self.bo_c = np.zeros_like(self.bo)
-
-		def forward(self, x):
-			''' Forward pass '''
-			self.x = x
-			self.batch_size = x.shape[0]
-			self.sequence_length = x.shape[1]
-			self.input_features = x.shape[2]
-
-			# Initialize hidden state and cell state
-			self.h = np.zeros((self.batch_size, self.sequence_length, self.units))
-			self.c = np.zeros((self.batch_size, self.sequence_length, self.units))
-
-			# Initialize gates
-			self.i = np.zeros((self.batch_size, self.sequence_length, self.units))
-			self.f = np.zeros((self.batch_size, self.sequence_length, self.units))
-			self.c_bar = np.zeros((self.batch_size, self.sequence_length, self.units))
-			self.o = np.zeros((self.batch_size, self.sequence_length, self.units))
-
-			# Process each time step
-			for t in range(self.sequence_length):
-				# Input gate
-				self.i[:, t] = self.sigmoid(np.dot(x[:, t], self.wi.T) + 
-										  np.dot(self.h[:, t-1], self.ui.T) + self.bi)
-				
-				# Forget gate
-				self.f[:, t] = self.sigmoid(np.dot(x[:, t], self.wf.T) + 
-										  np.dot(self.h[:, t-1], self.uf.T) + self.bf)
-				
-				# Cell state candidate
-				self.c_bar[:, t] = np.tanh(np.dot(x[:, t], self.wc.T) + 
-										 np.dot(self.h[:, t-1], self.uc.T) + self.bc)
-				
-				# Update cell state
-				self.c[:, t] = self.f[:, t] * self.c[:, t-1] + self.i[:, t] * self.c_bar[:, t]
-				
-				# Output gate
-				self.o[:, t] = self.sigmoid(np.dot(x[:, t], self.wo.T) + 
-										  np.dot(self.h[:, t-1], self.uo.T) + self.bo)
-				
-				# Update hidden state
-				self.h[:, t] = self.o[:, t] * np.tanh(self.c[:, t])
-
-			# Add regularization terms
-			if self.chip == 'CPU':
-				self.L1w = self.l1w * (np.sum(np.abs(self.wi)) + np.sum(np.abs(self.wf)) + 
-									 np.sum(np.abs(self.wc)) + np.sum(np.abs(self.wo)) +
-									 np.sum(np.abs(self.ui)) + np.sum(np.abs(self.uf)) + 
-									 np.sum(np.abs(self.uc)) + np.sum(np.abs(self.uo)))
-				self.L1b = self.l1b * (np.sum(np.abs(self.bi)) + np.sum(np.abs(self.bf)) + 
-									 np.sum(np.abs(self.bc)) + np.sum(np.abs(self.bo)))
-				self.L2w = self.l2w * (np.sum(self.wi**2) + np.sum(self.wf**2) + 
-									 np.sum(self.wc**2) + np.sum(self.wo**2) +
-									 np.sum(self.ui**2) + np.sum(self.uf**2) + 
-									 np.sum(self.uc**2) + np.sum(self.uo**2))
-				self.L2b = self.l2b * (np.sum(self.bi**2) + np.sum(self.bf**2) + 
-									 np.sum(self.bc**2) + np.sum(self.bo**2))
-			elif self.chip == 'GPU':
-				self.L1w = self.l1w * (cp.sum(np.abs(self.wi)) + cp.sum(np.abs(self.wf)) + 
-									 cp.sum(np.abs(self.wc)) + cp.sum(np.abs(self.wo)) +
-									 cp.sum(np.abs(self.ui)) + cp.sum(np.abs(self.uf)) + 
-									 cp.sum(np.abs(self.uc)) + cp.sum(np.abs(self.uo)))
-				self.L1b = self.l1b * (cp.sum(np.abs(self.bi)) + cp.sum(np.abs(self.bf)) + 
-									 cp.sum(np.abs(self.bc)) + cp.sum(np.abs(self.bo)))
-				self.L2w = self.l2w * (cp.sum(self.wi**2) + cp.sum(self.wf**2) + 
-									 cp.sum(self.wc**2) + cp.sum(self.wo**2) +
-									 cp.sum(self.ui**2) + cp.sum(self.uf**2) + 
-									 cp.sum(self.uc**2) + cp.sum(self.uo**2))
-				self.L2b = self.l2b * (cp.sum(self.bi**2) + cp.sum(self.bf**2) + 
-									 cp.sum(self.bc**2) + cp.sum(self.bo**2))
-			self.L1L2 = self.L1w + self.L1b + self.L2w + self.L2b
-
-			if self.return_sequences:
-				return self.h
-			else:
-				return self.h[:, -1]
-
-		def backward(self, dy):
-			''' Backward pass '''
-			# Initialize gradients
-			self.dwi = np.zeros_like(self.wi)
-			self.dwf = np.zeros_like(self.wf)
-			self.dwc = np.zeros_like(self.wc)
-			self.dwo = np.zeros_like(self.wo)
-			self.dui = np.zeros_like(self.ui)
-			self.duf = np.zeros_like(self.uf)
-			self.duc = np.zeros_like(self.uc)
-			self.duo = np.zeros_like(self.uo)
-			self.dbi = np.zeros_like(self.bi)
-			self.dbf = np.zeros_like(self.bf)
-			self.dbc = np.zeros_like(self.bc)
-			self.dbo = np.zeros_like(self.bo)
-			dx = np.zeros_like(self.x)
-
-			# Initialize cell state and hidden state gradients
-			dc_next = np.zeros((self.batch_size, self.units))
-			dh_next = np.zeros((self.batch_size, self.units))
-
-			# Backpropagate through time
-			for t in reversed(range(self.sequence_length)):
-				if self.return_sequences:
-					dh = dy[:, t] + dh_next
-				else:
-					dh = dy if t == self.sequence_length - 1 else dh_next
-
-				# Output gate gradients
-				do = dh * np.tanh(self.c[:, t])
-				do = do * self.sigmoid(self.o[:, t]) * (1 - self.o[:, t])
-				self.dwo += np.dot(self.x[:, t].T, do)
-				self.duo += np.dot(self.h[:, t-1].T, do)
-				self.dbo += np.sum(do, axis=0, keepdims=True)
-
-				# Cell state gradients
-				dc = dh * self.o[:, t] * (1 - np.tanh(self.c[:, t])**2)
-				dc = dc + dc_next
-
-				# Cell state candidate gradients
-				dc_bar = dc * self.i[:, t]
-				dc_bar = dc_bar * (1 - self.c_bar[:, t]**2)
-				self.dwc += np.dot(self.x[:, t].T, dc_bar)
-				self.duc += np.dot(self.h[:, t-1].T, dc_bar)
-				self.dbc += np.sum(dc_bar, axis=0, keepdims=True)
-
-				# Input gate gradients
-				di = dc * self.c_bar[:, t]
-				di = di * self.sigmoid(self.i[:, t]) * (1 - self.i[:, t])
-				self.dwi += np.dot(self.x[:, t].T, di)
-				self.dui += np.dot(self.h[:, t-1].T, di)
-				self.dbi += np.sum(di, axis=0, keepdims=True)
-
-				# Forget gate gradients
-				df = dc * self.c[:, t-1]
-				df = df * self.sigmoid(self.f[:, t]) * (1 - self.f[:, t])
-				self.dwf += np.dot(self.x[:, t].T, df)
-				self.duf += np.dot(self.h[:, t-1].T, df)
-				self.dbf += np.sum(df, axis=0, keepdims=True)
-
-				# Update gradients for next time step
-				dc_next = dc * self.f[:, t]
-				dh_next = np.dot(do, self.uo) + np.dot(dc_bar, self.uc) + \
-						  np.dot(di, self.ui) + np.dot(df, self.uf)
-
-				# Input gradients
-				dx[:, t] = np.dot(do, self.wo) + np.dot(dc_bar, self.wc) + \
-						   np.dot(di, self.wi) + np.dot(df, self.wf)
-
-			# Add regularization gradients
-			if self.chip == 'CPU':
-				# L1 regularization
-				L1_dwi = np.ones_like(self.wi)
-				L1_dwi[self.wi < 0] = -1
-				self.dwi += self.l1w * L1_dwi
-				L1_dwf = np.ones_like(self.wf)
-				L1_dwf[self.wf < 0] = -1
-				self.dwf += self.l1w * L1_dwf
-				L1_dwc = np.ones_like(self.wc)
-				L1_dwc[self.wc < 0] = -1
-				self.dwc += self.l1w * L1_dwc
-				L1_dwo = np.ones_like(self.wo)
-				L1_dwo[self.wo < 0] = -1
-				self.dwo += self.l1w * L1_dwo
-				L1_dui = np.ones_like(self.ui)
-				L1_dui[self.ui < 0] = -1
-				self.dui += self.l1w * L1_dui
-				L1_duf = np.ones_like(self.uf)
-				L1_duf[self.uf < 0] = -1
-				self.duf += self.l1w * L1_duf
-				L1_duc = np.ones_like(self.uc)
-				L1_duc[self.uc < 0] = -1
-				self.duc += self.l1w * L1_duc
-				L1_duo = np.ones_like(self.uo)
-				L1_duo[self.uo < 0] = -1
-				self.duo += self.l1w * L1_duo
-				L1_dbi = np.ones_like(self.bi)
-				L1_dbi[self.bi < 0] = -1
-				self.dbi += self.l1b * L1_dbi
-				L1_dbf = np.ones_like(self.bf)
-				L1_dbf[self.bf < 0] = -1
-				self.dbf += self.l1b * L1_dbf
-				L1_dbc = np.ones_like(self.bc)
-				L1_dbc[self.bc < 0] = -1
-				self.dbc += self.l1b * L1_dbc
-				L1_dbo = np.ones_like(self.bo)
-				L1_dbo[self.bo < 0] = -1
-				self.dbo += self.l1b * L1_dbo
-
-				# L2 regularization
-				self.dwi += 2 * self.l2w * self.wi
-				self.dwf += 2 * self.l2w * self.wf
-				self.dwc += 2 * self.l2w * self.wc
-				self.dwo += 2 * self.l2w * self.wo
-				self.dui += 2 * self.l2w * self.ui
-				self.duf += 2 * self.l2w * self.uf
-				self.duc += 2 * self.l2w * self.uc
-				self.duo += 2 * self.l2w * self.uo
-				self.dbi += 2 * self.l2b * self.bi
-				self.dbf += 2 * self.l2b * self.bf
-				self.dbc += 2 * self.l2b * self.bc
-				self.dbo += 2 * self.l2b * self.bo
-			elif self.chip == 'GPU':
-				# L1 regularization
-				L1_dwi = cp.ones_like(self.wi)
-				L1_dwi[self.wi < 0] = -1
-				self.dwi += self.l1w * L1_dwi
-				L1_dwf = cp.ones_like(self.wf)
-				L1_dwf[self.wf < 0] = -1
-				self.dwf += self.l1w * L1_dwf
-				L1_dwc = cp.ones_like(self.wc)
-				L1_dwc[self.wc < 0] = -1
-				self.dwc += self.l1w * L1_dwc
-				L1_dwo = cp.ones_like(self.wo)
-				L1_dwo[self.wo < 0] = -1
-				self.dwo += self.l1w * L1_dwo
-				L1_dui = cp.ones_like(self.ui)
-				L1_dui[self.ui < 0] = -1
-				self.dui += self.l1w * L1_dui
-				L1_duf = cp.ones_like(self.uf)
-				L1_duf[self.uf < 0] = -1
-				self.duf += self.l1w * L1_duf
-				L1_duc = cp.ones_like(self.uc)
-				L1_duc[self.uc < 0] = -1
-				self.duc += self.l1w * L1_duc
-				L1_duo = cp.ones_like(self.uo)
-				L1_duo[self.uo < 0] = -1
-				self.duo += self.l1w * L1_duo
-				L1_dbi = cp.ones_like(self.bi)
-				L1_dbi[self.bi < 0] = -1
-				self.dbi += self.l1b * L1_dbi
-				L1_dbf = cp.ones_like(self.bf)
-				L1_dbf[self.bf < 0] = -1
-				self.dbf += self.l1b * L1_dbf
-				L1_dbc = cp.ones_like(self.bc)
-				L1_dbc[self.bc < 0] = -1
-				self.dbc += self.l1b * L1_dbc
-				L1_dbo = cp.ones_like(self.bo)
-				L1_dbo[self.bo < 0] = -1
-				self.dbo += self.l1b * L1_dbo
-
-				# L2 regularization
-				self.dwi += 2 * self.l2w * self.wi
-				self.dwf += 2 * self.l2w * self.wf
-				self.dwc += 2 * self.l2w * self.wc
-				self.dwo += 2 * self.l2w * self.wo
-				self.dui += 2 * self.l2w * self.ui
-				self.duf += 2 * self.l2w * self.uf
-				self.duc += 2 * self.l2w * self.uc
-				self.duo += 2 * self.l2w * self.uo
-				self.dbi += 2 * self.l2b * self.bi
-				self.dbf += 2 * self.l2b * self.bf
-				self.dbc += 2 * self.l2b * self.bc
-				self.dbo += 2 * self.l2b * self.bo
-
-			return dx
-
-		def sigmoid(self, x):
-			''' Sigmoid activation function '''
-			return 1 / (1 + np.exp(-x))
-
 	#---------- Training ----------#
 	def train(self,
 			X_train=None, Y_train=None,
@@ -1085,3 +553,284 @@ class PyNN():
 			args['accuracy_tests'] = accuracy_tests
 			args['time'] = Tend - Tstart
 			if verbose == 1 or verbose == 2: self.verbosity('Tests', args)
+
+
+
+
+
+import scipy
+"""
+[ ] Remove scipy
+[ ] stride
+[ ] ''' Initialise parameters '''
+[ ] padding
+[ ] 1D 2D 3D
+[ ] L1L2
+[ ] Move channel (depth) to [-1] rather than [0]
+"""
+"""
+class Conv():
+	''' A convolution layer '''
+	def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
+		self.input_shape = input_shape
+		self.depth = depth
+		self.input_depth = input_shape[0]
+
+		self.kernel_shape = (depth, input_shape[0], kernel_size, kernel_size)
+		self.output_shape = (depth, input_shape[1] - kernel_size + 1, input_shape[2] - kernel_size + 1)
+
+		self.K = np.random.uniform(low=-0.5, high=0.5, size=self.kernel_shape)
+		self.B = np.random.uniform(low=-0.5, high=0.5, size=self.output_shape)
+
+	def forward(self, x):
+		self.x = x
+		self.y = np.copy(self.B)
+		for d in range(self.depth):
+			for n in range(self.input_depth):
+				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
+		return(self.y)
+
+	def backward(self, DL_DY):
+		self.dK = np.zeros(self.kernel_shape) # self.dw
+		self.dB = np.copy(DL_DY)              # self.db
+		self.dx = np.zeros(self.input_shape)
+		for d in range(self.depth):
+			for n in range(self.input_depth):
+				self.dK[d, n] = scipy.signal.correlate2d(self.x[n], DL_DY[d],'valid')
+				self.dx[n] += scipy.signal.convolve2d(DL_DY[d], self.K[d, n],'full')
+		return(self.dx)
+
+
+
+
+
+
+
+
+
+
+x = np.array([
+    [[1, 2, 3],     # Channel 0
+     [4, 5, 6],
+     [7, 8, 9]],
+
+    [[9, 8, 7],     # Channel 1
+     [6, 5, 4],
+     [3, 2, 1]],
+
+    [[0, 1, 0],     # Channel 2
+     [1, 0, 1],
+     [0, 1, 0]]
+])
+
+C = Conv()
+y = C.forward(x)
+#print(y)
+
+
+
+
+
+
+class MaxPool():
+	''' A max pooling layer '''
+	def __init__(self, pool_size=(2, 2), stride=(2, 2), mode='2D'):
+		self.pool_size = pool_size
+		self.stride = stride
+		self.mode = mode
+	def forward(self, x):
+		self.x = x
+		if   self.mode == '1D': return(self.forward1D(x))
+		elif self.mode == '2D': return(self.forward2D(x))
+		elif self.mode == '3D': return(self.forward3D(x))
+	def backward(self, dz):
+		if   self.mode == '1D': return(self.backward1D(dz))
+		elif self.mode == '2D': return(self.backward2D(dz))
+		elif self.mode == '3D': return(self.backward3D(dz))
+	def forward1D(self, x):
+		output_length = (x.shape[0] - self.pool_size) // self.stride + 1
+		windows = np.lib.stride_tricks.as_strided(x,
+			shape=(output_length, self.pool_size),
+			strides=(x.strides[0] * self.stride, x.strides[0]))
+		output = np.max(windows, axis=1)
+		self.windows = windows
+		return(output)
+	def backward1D(self, dz):
+		dx = np.zeros_like(self.x)
+		for i in range(dz.shape[0]):
+			window = self.windows[i]
+			max_pos = np.argmax(window)
+			dx[i * self.stride + max_pos] = dz[i]
+		return(dx)
+	def forward2D(self, x):
+		h, w = x.shape
+		ph, pw = self.pool_size
+		stride_h, stride_w = self.stride
+		out_h = (h - ph) // stride_h + 1
+		out_w = (w - pw) // stride_w + 1
+		windows = np.lib.stride_tricks.as_strided(x,
+			shape=(out_h, out_w, ph, pw),
+			strides=(x.strides[0] * stride_h, x.strides[1] * stride_w,
+			x.strides[0], x.strides[1]))
+		output = np.max(windows, axis=(2, 3))
+		self.windows = windows
+		return(output)
+	def backward2D(self, dz):
+		dx = np.zeros_like(self.x)
+		for i in range(dz.shape[0]):
+			for j in range(dz.shape[1]):
+				window = self.windows[i, j]
+				max_pos = np.unravel_index(np.argmax(window), window.shape)
+				dx[i * self.stride[0] + max_pos[0],
+				j * self.stride[1] + max_pos[1]] = dz[i, j]
+		return(dx)
+	def forward3D(self, x):
+		c, h, w = x.shape
+		p_h, p_w = self.pool_size
+		stride_h, stride_w = self.stride
+		out_h = (h - p_h) // stride_h + 1
+		out_w = (w - p_w) // stride_w + 1
+		windows = np.lib.stride_tricks.as_strided(x,
+			shape=(c, out_h, out_w, p_h, p_w),
+			strides=(x.strides[0], x.strides[1] * stride_h,
+			x.strides[2] * stride_w, x.strides[1], x.strides[2]))
+		output = np.max(windows, axis=(3, 4))
+		self.windows = windows
+		return(output)
+	def backward3D(self, dz):
+		dx = np.zeros_like(self.x)
+		for i in range(dz.shape[0]):
+			for j in range(dz.shape[1]):
+				window = self.windows[i, j]
+				max_pos = np.unravel_index(np.argmax(window), window.shape)
+				dx[i, j * self.stride[0] + max_pos[0],
+				j * self.stride[1] + max_pos[1]] = dz[i, j]
+		return(dx)
+class AveragePool():
+	''' An average pooling layer '''
+	def __init__(self, pool_size=(2, 2), stride=(2, 2), mode='2D'):
+		self.pool_size = pool_size
+		self.stride = stride
+		self.mode = mode
+	def forward(self, x):
+		self.x = x
+		if   self.mode == '1D': return(self.forward1D(x))
+		elif self.mode == '2D': return(self.forward2D(x))
+		elif self.mode == '3D': return(self.forward3D(x))
+	def backward(self, dz):
+		if   self.mode == '1D': return(self.backward1D(dz))
+		elif self.mode == '2D': return(self.backward2D(dz))
+		elif self.mode == '3D': return(self.backward3D(dz))
+	def forward1D(self, x):
+		output_length = (x.shape[0] - self.pool_size) // self.stride + 1
+		windows = np.lib.stride_tricks.as_strided(x,
+			shape=(output_length, self.pool_size),
+			strides=(x.strides[0] * self.stride, x.strides[0]))
+		output = np.mean(windows, axis=1)
+		self.windows = windows
+		return(output)
+	def backward1D(self, dz):
+		dx = np.zeros_like(self.x)
+		for i in range(dz.shape[0]):
+			window = self.windows[i]
+			avg_val = np.mean(window)
+			dx[i * self.stride + np.arange(self.pool_size)] = dz[i] / self.pool_size
+		return(dx)
+	def forward2D(self, x):
+		h, w = x.shape
+		ph, pw = self.pool_size
+		stride_h, stride_w = self.stride
+		out_h = (h - ph) // stride_h + 1
+		out_w = (w - pw) // stride_w + 1
+		windows = np.lib.stride_tricks.as_strided(x,
+			shape=(out_h, out_w, ph, pw),
+			strides=(x.strides[0] * stride_h, x.strides[1] * stride_w,
+			x.strides[0], x.strides[1]))
+		output = np.mean(windows, axis=(2, 3))
+		self.windows = windows
+		return(output)
+	def backward2D(self, dz):
+		dx = np.zeros_like(self.x)
+		for i in range(dz.shape[0]):
+			for j in range(dz.shape[1]):
+				window = self.windows[i, j]
+				avg_val = np.mean(window)
+				dx[i * self.stride[0] + np.arange(self.pool_size[0]),
+				j * self.stride[1] + np.arange(self.pool_size[1])] = dz[i, j] / self.pool_size[0] / self.pool_size[1]
+		return(dx)
+	def forward3D(self, x):
+		c, h, w = x.shape
+		p_h, p_w = self.pool_size
+		stride_h, stride_w = self.stride
+		out_h = (h - p_h) // stride_h + 1
+		out_w = (w - p_w) // stride_w + 1
+		windows = np.lib.stride_tricks.as_strided(x,
+			shape=(c, out_h, out_w, p_h, p_w),
+			strides=(x.strides[0], x.strides[1] * stride_h,
+			x.strides[2] * stride_w, x.strides[1], x.strides[2]))
+		output = np.mean(windows, axis=(3, 4))
+		self.windows = windows
+		return(output)
+	def backward3D(self, dz):
+		dx = np.zeros_like(self.x)
+		for i in range(dz.shape[0]):
+			for j in range(dz.shape[1]):
+				window = self.windows[i, j]
+				avg_val = np.mean(window)
+				dx[i, j * self.stride[0] + np.arange(self.pool_size[0]),
+					j * self.stride[1] + np.arange(self.pool_size[1])] = dz[i, j] / self.pool_size[0] / self.pool_size[1]
+		return(dx)
+
+
+
+
+# Test the MaxPool class for 1D, 2D, and 3D inputs
+def test_maxpool():
+    # Test 1D max pooling
+    x_1d = np.array([1, 3, 2, 4, 5, 2, 3, 1])  # 1D input array
+    pool_size_1d = 3  # Pool size
+    stride_1d = 2  # Stride
+    maxpool_1d = AveragePool(pool_size=pool_size_1d, stride=stride_1d, mode='1D')
+
+    print("Testing 1D Max Pooling:")
+    output_1d = maxpool_1d.forward(x_1d)
+    print(f"Output of 1D Max Pooling: {output_1d}")
+    dz_1d = np.array([1, 2, 3])  # Example gradient
+    dx_1d = maxpool_1d.backward(dz_1d)
+    print(f"Gradient w.r.t input for 1D: {dx_1d}")
+    print("-" * 30)
+
+    # Test 2D max pooling
+    x_2d = np.array([[1, 3, 2, 4], [5, 6, 1, 3], [2, 4, 7, 1], [1, 2, 3, 4]])  # 2D input array
+    pool_size_2d = (2, 2)  # Pool size (2x2)
+    stride_2d = (2, 2)  # Stride (2, 2)
+    maxpool_2d = AveragePool(pool_size=pool_size_2d, stride=stride_2d, mode='2D')
+
+    print("Testing 2D Max Pooling:")
+    output_2d = maxpool_2d.forward(x_2d)
+    print(f"Output of 2D Max Pooling: \n{output_2d}")
+    dz_2d = np.array([[1, 2], [3, 4]])  # Example gradient
+    dx_2d = maxpool_2d.backward(dz_2d)
+    print(f"Gradient w.r.t input for 2D: \n{dx_2d}")
+    print("-" * 30)
+
+    # Test 3D max pooling
+    x_3d = np.array([[[1, 3, 2], [4, 5, 2], [3, 1, 4]],
+                     [[7, 6, 5], [3, 2, 8], [6, 9, 1]],
+                     [[2, 4, 3], [1, 2, 1], [5, 6, 4]]])  # 3D input array (3x3x3)
+    pool_size_3d = (2, 2)  # Pool size (2x2)
+    stride_3d = (2, 2)  # Stride (2, 2)
+    maxpool_3d = AveragePool(pool_size=pool_size_3d, stride=stride_3d, mode='3D')
+
+    print("Testing 3D Max Pooling:")
+    output_3d = maxpool_3d.forward(x_3d)
+    print(f"Output of 3D Max Pooling: \n{output_3d}")
+
+    dz_3d = np.array([[1], [3], [1]])  # Example gradient
+    dx_3d = maxpool_3d.backward(dz_3d)
+    print(f"Gradient w.r.t input for 3D: \n{dx_3d}")
+    print("-" * 30)
+
+if __name__ == "__main__":
+    test_maxpool()
+"""
