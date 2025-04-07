@@ -403,8 +403,8 @@ class PyNN():
 			return(new_dz)
 	class Pool():
 		''' A pooling layer '''
-		def __init__(self, pool=(2, 2), stride=(2, 2), dim='2D', alg='max'):
-			self.pool = pool
+		def __init__(self, pool_shape=(2,2), stride=(2,2), dim='2D', alg='max'):
+			self.pool = pool_shape
 			self.stride = stride
 			self.dim = dim
 			self.alg = alg.lower()
@@ -434,7 +434,7 @@ class PyNN():
 					dx[i * self.stride + max_pos] = dz[i]
 				elif self.alg == 'avg':
 					avg_val = np.mean(window)
-					dx[i*self.stride+np.arange(self.pool)] = dz[i]/self.pool
+					dx[i*self.stride + np.arange(self.pool)] = dz[i] / self.pool
 			return(dx)
 		def forward2D(self, x):
 			h, w = x.shape
@@ -666,47 +666,3 @@ class PyNN():
 			args['accuracy_tests'] = accuracy_tests
 			args['time'] = Tend - Tstart
 			if verbose == 1 or verbose == 2: self.verbosity('Tests', args)
-
-
-
-
-
-
-
-np.random.seed(42)
-
-def spiral_data(samples, classes):
-    X = np.zeros((samples*classes, 2))
-    Y = np.zeros(samples*classes, dtype='uint8')
-    for class_n in range(classes):
-        ix = range(samples*class_n, samples*(class_n+1))
-        r = np.linspace(0.0, 1, samples)
-        t = np.linspace(class_n*4, (class_n+1)*4, samples) + np.random.randn(samples)*0.2
-        X[ix] = np.c_[r*np.sin(t*2.5), r*np.cos(t*2.5)]
-        Y[ix] = class_n
-    return X, Y
-
-def run_categorical_classification():
-    ''' Categorical classification benchmark '''
-    print('\nRunning Categorical Classification Example')
-    X, Y = spiral_data(samples=100, classes=3)
-
-    model = PyNN()
-    model.add(model.Dense(2, 64, alg='glorot uniform'))
-    model.add(model.LeakyReLU(alpha=0.05))
-    model.add(model.Dense(64, 3, alg='glorot uniform'))
-    model.add(model.Softmax())
-
-    model.show()
-
-    model.train(
-        X_train=X, Y_train=Y,
-        batch_size=None,
-        loss='cce',
-        accuracy='categorical',
-        optimiser='adam', lr=0.005, decay=5e-7, beta1=0.9, beta2=0.999, e=1e-7,
-        early_stop=False,
-        epochs=2000,
-        verbose=1)
-
-run_categorical_classification() # Train Cost 0.16705 | Train Accuracy 0.94333
