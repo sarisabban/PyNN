@@ -401,99 +401,23 @@ class PyNN():
 			if   self.chip == 'CPU': new_dz = np.reshape(dz, self.input_shape)
 			elif self.chip == 'GPU': new_dz = cp.reshape(dz, self.input_shape)
 			return(new_dz)
-	class Pool():
-		''' A pooling layer '''
-		def __init__(self, pool_shape=(2,2), stride=(2,2), dim='2D', alg='max'):
-			self.pool = pool_shape
-			self.stride = stride
-			self.dim = dim
-			self.alg = alg.lower()
-		def forward(self, x):
-			self.x = x
-			if   self.dim == '1D': return(self.forward1D(x))
-			elif self.dim == '2D': return(self.forward2D(x))
-			elif self.dim == '3D': return(self.forward3D(x))
-		def backward(self, dz):
-			if   self.dim == '1D': return(self.backward1D(dz))
-			elif self.dim == '2D': return(self.backward2D(dz))
-			elif self.dim == '3D': return(self.backward3D(dz))
-		def forward1D(self, x):
-			output_length = (x.shape[0] - self.pool) // self.stride + 1
-			self.windows = np.lib.stride_tricks.as_strided(x,
-				shape=(output_length, self.pool),
-				strides=(x.strides[0] * self.stride, x.strides[0]))
-			if   self.alg == 'max': output = np.max(self.windows, axis=1)
-			elif self.alg == 'avg': output = np.mean(self.windows, axis=1)
-			return(output)
-		def backward1D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				window = self.windows[i]
-				if self.alg == 'max':
-					max_pos = np.argmax(window)
-					dx[i * self.stride + max_pos] = dz[i]
-				elif self.alg == 'avg':
-					avg_val = np.mean(window)
-					dx[i*self.stride + np.arange(self.pool)] = dz[i] / self.pool
-			return(dx)
-		def forward2D(self, x):
-			h, w = x.shape
-			ph, pw = self.pool
-			stride_h, stride_w = self.stride
-			out_h = (h - ph) // stride_h + 1
-			out_w = (w - pw) // stride_w + 1
-			self.windows = np.lib.stride_tricks.as_strided(x,
-				shape=(out_h, out_w, ph, pw),
-				strides=(x.strides[0] * stride_h, x.strides[1] * stride_w,
-				x.strides[0], x.strides[1]))
-			if   self.alg == 'max': output = np.max(self.windows, axis=(2, 3))
-			elif self.alg == 'avg': output = np.mean(self.windows, axis=(2, 3))
-			return(output)
-		def backward2D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				for j in range(dz.shape[1]):
-					window = self.windows[i, j]
-					if  self.alg == 'max':
-						max_pos = np.unravel_index(np.argmax(window), \
-						window.shape)
-						dx[i * self.stride[0] + max_pos[0],
-						j * self.stride[1] + max_pos[1]] = dz[i, j]
-					elif self.alg == 'avg':
-						avg_val = np.mean(window)
-						dx[i * self.stride[0] + np.arange(self.pool[0]),
-						j * self.stride[1] + np.arange(self.pool[1])] = \
-						dz[i, j] / self.pool[0] / self.pool[1]
-			return(dx)
-		def forward3D(self, x):
-			c, h, w = x.shape
-			p_h, p_w = self.pool
-			stride_h, stride_w = self.stride
-			out_h = (h - p_h) // stride_h + 1
-			out_w = (w - p_w) // stride_w + 1
-			self.windows = np.lib.stride_tricks.as_strided(x,
-				shape=(c, out_h, out_w, p_h, p_w),
-				strides=(x.strides[0], x.strides[1] * stride_h,
-				x.strides[2] * stride_w, x.strides[1], x.strides[2]))
-			if   self.alg == 'max': output = np.max(self.windows, axis=(3, 4))
-			elif self.alg == 'avg': output = np.mean(self.windows, axis=(3, 4))
-			return(output)
-		def backward3D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				for j in range(dz.shape[1]):
-					window = self.windows[i, j]
-					if self.alg == 'max':
-						max_pos = np.unravel_index(np.argmax(window), \
-						window.shape)
-						dx[i, j * self.stride[0] + max_pos[0],
-						j * self.stride[1] + max_pos[1]] = dz[i, j]
-					elif self.alg == 'avg':
-						avg_val = np.mean(window)
-						dx[i, j * self.stride[0] + np.arange(self.pool[0]),
-							j * self.stride[1] + np.arange(self.pool[1])] = \
-							dz[i, j] / self.pool[0] / self.pool[1]
-			return(dx)
+
+
+
+
+
+
+
+	############################## POOL() HERE ##########################
+	############################## POOL() HERE ##########################
+	############################## POOL() HERE ##########################
+	############################## POOL() HERE ##########################
+	############################## POOL() HERE ##########################
+
+
+
+
+
 	class Dense():
 		''' A dense layer '''
 		def __init__(self, inputs=1, outputs=1,
@@ -666,3 +590,46 @@ class PyNN():
 			args['accuracy_tests'] = accuracy_tests
 			args['time'] = Tend - Tstart
 			if verbose == 1 or verbose == 2: self.verbosity('Tests', args)
+
+
+
+
+	class Pool():
+		''' An n dimensional pooling layer '''
+		def __init__(self, window=(2, 2), stride=(2, 2), alg='max'):
+			if isinstance(window, int): self.window = (window,)
+			else: self.window = window
+			if isinstance(window, int): self.stride = (stride,)
+			else: self.stride = stride
+			self.alg = alg.lower()
+		def forward(self, x):
+			d, w, s = x.shape, self.window, self.stride
+			stds = x.strides
+			output_shape = tuple((d[i]-w[i]) // s[i] + 1 for i in range(len(d)))
+			window_shape = output_shape + self.window
+			window_strides = tuple(stds[i] * s[i] for i in range(len(d))) + stds
+			self.windows = np.lib.stride_tricks.as_strided(
+			x, shape=window_shape, strides=window_strides)
+			n = len(x.shape)
+			axis = tuple(range(n, n + n))
+			if   self.alg == 'max': output = np.max(self.windows,  axis=axis)
+			elif self.alg == 'avg': output = np.mean(self.windows, axis=axis)
+			return(output)
+#		def backward(self, dz):
+
+
+
+
+model = PyNN()
+
+#X = np.array([1, 3, 2, 5, 7, 6, 1, 4]) # [3, 5, 7, 4]
+#model.add(model.Pool(2, 2, 'max'))
+
+#X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
+#model.add(model.Pool((2, 2), (2, 2), 'max'))
+
+X = np.array([[[ 1,  2,  3,  4], [ 5,  6,  7,  8], [ 9, 10, 11, 12], [13, 14, 15, 16]],[[17, 18, 19, 20], [21, 22, 23, 24], [25, 26, 27, 28], [29, 30, 31, 32]],[[33, 34, 35, 36], [37, 38, 39, 40], [41, 42, 43, 44], [45, 46, 47, 48]],[[49, 50, 51, 52], [53, 54, 55, 56], [57, 58, 59, 60], [61, 62, 63, 64]]])
+model.add(model.Pool((2, 2, 2), (2, 2, 2), 'max'))
+
+y = model.layers[0].forward(X)
+print(y)
