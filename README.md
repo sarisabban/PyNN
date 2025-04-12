@@ -69,7 +69,7 @@ You can run the following banchmark scripts (requires `pip install scikit-learn`
 Feel free to contribute by submitting issues or pull requests. Ensure your code follows best practices and includes tests.
 
 ## TODO:
-[X] Maxpooling 1D, 2D, 3D (code again)
+[ ] Maxpooling 1D, 2D, 3D (code again)
 [ ] Make sure everything uses GPU without CPU bottle necks
 [ ] Activation Function: GELU (Gaussian Error Linear Unit)
 [ ] Activation Function: SiLU (Swish)
