@@ -69,15 +69,16 @@ You can run the following banchmark scripts (requires `pip install scikit-learn`
 Feel free to contribute by submitting issues or pull requests. Ensure your code follows best practices and includes tests.
 
 ## TODO:
-[ ] Maxpooling 1D, 2D, 3D (code again)
-[ ] Make sure everything uses GPU without CPU bottle necks
-[ ] Activation Function: GELU (Gaussian Error Linear Unit)
-[ ] Activation Function: SiLU (Swish)
-[ ] Loss Function: Perceptual Loss (LPIPS)
-[ ] CNNs 1D, 2D, 3D
-[ ] Optimiser: Lion (EvoLved Sign Momentum)
-[ ] Regularisation: LayerNorm, RMSNorm
-[ ] RNN, GRU, LSTM, attention layer
+- [ ] Pooling 1D, 2D, 3D (code again)
+- [ ] Padding
+- [ ] CNNs 1D, 2D, 3D
+- [ ] Activation Function: GELU (Gaussian Error Linear Unit)
+- [ ] Activation Function: SiLU (Swish)
+- [ ] Loss Function: Perceptual Loss (LPIPS)
+- [ ] Optimiser: Lion (EvoLved Sign Momentum)
+- [ ] Regularisation: LayerNorm, RMSNorm
+- [ ] Make sure everything uses GPU without CPU bottle necks
+- [ ] RNN, GRU, LSTM, attention layer
 
 Study and build architectures:
 * (done)           Dense
