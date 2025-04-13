@@ -3,7 +3,7 @@ import math
 import pickle
 import numpy as np
 
-try: import cupy as cp
+try: import cupy as np
 except: pass
 
 class PyNN():
@@ -167,7 +167,8 @@ class PyNN():
 			y = np.where(z >= 0, 1, 0)
 			return(y)
 		def backward(self, dy):
-			return(np.zeros_like(dy))
+			dz = np.zeros_like(dy)
+			return(dz)
 	class Linear():
 		''' The Linear activation function '''
 		def forward(self, z):
@@ -394,30 +395,48 @@ class PyNN():
 			self.input_shape = input_shape
 			self.output_shape = output_shape
 		def forward(self, x):
-			if   self.chip == 'CPU': new_x = np.reshape(x, self.output_shape)
-			elif self.chip == 'GPU': new_x = cp.reshape(x, self.output_shape)
+			new_x = np.reshape(x, self.output_shape)
 			return(new_x)
 		def backward(self, dz):
-			if   self.chip == 'CPU': new_dz = np.reshape(dz, self.input_shape)
-			elif self.chip == 'GPU': new_dz = cp.reshape(dz, self.input_shape)
+			new_dz = np.reshape(dz, self.input_shape)
 			return(new_dz)
-
-
-
-
-
-
-
-	############################## POOL() HERE ##########################
-	############################## POOL() HERE ##########################
-	############################## POOL() HERE ##########################
-	############################## POOL() HERE ##########################
-	############################## POOL() HERE ##########################
-
-
-
-
-
+	class Pool():
+		''' An n dimensional pooling layer '''
+		def __init__(self, window=(2, 2), stride=(2, 2), alg='max'):
+			if isinstance(window, int): self.window = (window,)
+			else: self.window = window
+			if isinstance(stride, int): self.stride = (stride,)
+			else: self.stride = stride
+			self.alg = alg.lower()
+		def forward(self, x):
+			self.x = x
+			d, w, s = x.shape, self.window, self.stride
+			stds = x.strides
+			output_shape = tuple((d[i]-w[i]) // s[i] + 1 for i in range(len(d)))
+			window_shape = output_shape + self.window
+			window_strides = tuple(stds[i] * s[i] for i in range(len(d))) + stds
+			self.windows = np.lib.stride_tricks.as_strided(
+			x, shape=window_shape, strides=window_strides)
+			n = len(x.shape)
+			axis = tuple(range(n, n + n))
+			if   self.alg == 'max': output = np.max(self.windows,  axis=axis)
+			elif self.alg == 'avg': output = np.mean(self.windows, axis=axis)
+			return(output)
+		def backward(self, dz):
+			sh, st, wn = dz.shape, self.stride, self.window
+			if self.alg == 'max':
+				dx = np.zeros_like(self.x)
+				idx = np.argmax(self.windows.reshape(dz.shape + (-1,)), axis=-1)
+				coord = np.unravel_index(idx, self.window)
+				mesh = np.meshgrid(*[np.arange(s) for s in sh], indexing='ij')
+				idxs = [mesh[i] * st[i] + coord[i] for i in range(len(st))]
+				np.add.at(dx, tuple(idxs), dz)
+			elif self.alg == 'avg':
+				dx = np.zeros_like(self.x, dtype=np.float64)
+				for idx in np.ndindex(sh):
+					slc = tuple(slice(i*s,i*s+w) for i,s,w in zip(idx,st,wn))
+					dx[slc] += dz[idx] / np.prod(self.window)
+			return(dx)
 	class Dense():
 		''' A dense layer '''
 		def __init__(self, inputs=1, outputs=1,
@@ -434,45 +453,25 @@ class PyNN():
 			self.b_c = np.zeros_like(self.b)
 		def forward(self, x):
 			self.x = x
-			if self.chip == 'CPU':
-				self.L1w = self.l1w * np.sum(np.abs(self.w))
-				self.L1b = self.l1b * np.sum(np.abs(self.b))
-				self.L2w = self.l2w * np.sum(self.w**2)
-				self.L2b = self.l2b * np.sum(self.b**2)
-				z = np.dot(self.x, self.w) + self.b
-			elif self.chip == 'GPU':
-				self.L1w = self.l1w * cp.sum(np.abs(self.w))
-				self.L1b = self.l1b * cp.sum(np.abs(self.b))
-				self.L2w = self.l2w * cp.sum(self.w**2)
-				self.L2b = self.l2b * cp.sum(self.b**2)
-				z = cp.dot(self.x, self.w) + self.b
+			self.L1w = self.l1w * np.sum(np.abs(self.w))
+			self.L1b = self.l1b * np.sum(np.abs(self.b))
+			self.L2w = self.l2w * np.sum(self.w**2)
+			self.L2b = self.l2b * np.sum(self.b**2)
+			z = np.dot(self.x, self.w) + self.b
 			self.L1L2 = self.L1w + self.L1b + self.L2w + self.L2b
 			return(z)
 		def backward(self, dz):
-			if self.chip == 'CPU':
-				self.dw = np.dot(self.x.T, dz)
-				self.db = np.sum(dz, axis=0, keepdims=True)
-				self.dx = np.dot(dz, self.w.T)
-				L1_dw = np.ones_like(self.w)
-				L1_dw[self.w < 0] = -1
-				self.dw += self.l1w * L1_dw
-				L1_db = np.ones_like(self.b)
-				L1_db[self.b < 0] = -1
-				self.db += self.l1b * L1_db
-				self.dw += 2 * self.l2w * self.w
-				self.db += 2 * self.l2b * self.b
-			elif self.chip == 'GPU':
-				self.dw = cp.dot(self.x.T, dz)
-				self.db = cp.sum(dz, axis=0, keepdims=True)
-				self.dx = cp.dot(dz, self.w.T)
-				L1_dw = cp.ones_like(self.w)
-				L1_dw[self.w < 0] = -1
-				self.dw += self.l1w * L1_dw
-				L1_db = cp.ones_like(self.b)
-				L1_db[self.b < 0] = -1
-				self.db += self.l1b * L1_db
-				self.dw += 2 * self.l2w * self.w
-				self.db += 2 * self.l2b * self.b
+			self.dw = np.dot(self.x.T, dz)
+			self.db = np.sum(dz, axis=0, keepdims=True)
+			self.dx = np.dot(dz, self.w.T)
+			L1_dw = np.ones_like(self.w)
+			L1_dw[self.w < 0] = -1
+			self.dw += self.l1w * L1_dw
+			L1_db = np.ones_like(self.b)
+			L1_db[self.b < 0] = -1
+			self.db += self.l1b * L1_db
+			self.dw += 2 * self.l2w * self.w
+			self.db += 2 * self.l2b * self.b
 			return(self.dx)
 	#---------- Training ----------#
 	def train(self,
@@ -594,76 +593,24 @@ class PyNN():
 
 
 
-	class Pool(): ##### add GPU
-		''' An n dimensional pooling layer '''
-		def __init__(self, window=(2, 2), stride=(2, 2), alg='max'):
-			if isinstance(window, int): self.window = (window,)
-			else: self.window = window
-			if isinstance(window, int): self.stride = (stride,)
-			else: self.stride = stride
-			self.alg = alg.lower()
-		def forward(self, x):
-			self.x = x
-			d, w, s = x.shape, self.window, self.stride
-			stds = x.strides
-			output_shape = tuple((d[i]-w[i]) // s[i] + 1 for i in range(len(d)))
-			window_shape = output_shape + self.window
-			window_strides = tuple(stds[i] * s[i] for i in range(len(d))) + stds
-			self.windows = np.lib.stride_tricks.as_strided(
-			x, shape=window_shape, strides=window_strides)
-			n = len(x.shape)
-			axis = tuple(range(n, n + n))
-			if   self.alg == 'max': output = np.max(self.windows,  axis=axis)
-			elif self.alg == 'avg': output = np.mean(self.windows, axis=axis)
-			return(output)
-		def backward(self, dz):
 
 
-
-
-
-
-
-
-			dx = np.zeros_like(self.x)
-			if self.alg == 'max':
-				idx = np.argmax(self.windows.reshape(dz.shape + (-1,)), axis=-1)
-				coords = np.unravel_index(idx, self.window)
-				meshgrid = np.meshgrid(*[np.arange(s) for s in dz.shape], indexing='ij')
-				indices = [meshgrid[i] * self.stride[i] + coords[i] for i in range(len(self.stride))]
-				np.add.at(dx, tuple(indices), dz)
-			elif self.alg == 'avg':
-				meshgrid = np.meshgrid(*[np.arange(s) for s in dz.shape], indexing='ij')
-				indices = [meshgrid[i] * self.stride[i] + np.arange(self.window[i])[:, np.newaxis] for i in range(len(self.stride))]
-				np.add.at(dx, tuple(indices), dz[..., np.newaxis] / np.prod(self.window))
-			return(dx)
 
 
 
 
 model = PyNN()
 #dz = np.array([1, 2, 3, 4])
-#X = np.array([1, 3, 2, 5, 7, 6, 1, 4]) # [3, 5, 7, 4]
-#model.add(model.Pool(2, 2, 'max'))     # [0 1 0 2 3 0 0 4]
+#X = np.array([1, 3, 2, 5, 7, 6, 1, 4])
+#model.add(model.Pool(2, 2, 'max'))
 
-#dz = np.array([[1, 2], [3, 4]])
-#X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
-#model.add(model.Pool((2, 2), (2, 2), 'max'))
-'''
-[[ 6  8]
- [14 16]]
+dz = np.array([[1, 2], [3, 4]])
+X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
+model.add(model.Pool((2, 2), (2, 2), 'max'))
 
-[[0 0 0 0]
- [0 1 0 2]
- [0 0 0 0]
- [0 3 0 4]]
-'''
-
-#dz = np.array([])
+#dz = np.array([[[1, 2], [3, 4]], [[1, 3],[2, 5]]])
 #X = np.array([[[ 1,  2,  3,  4], [ 5,  6,  7,  8], [ 9, 10, 11, 12], [13, 14, 15, 16]],[[17, 18, 19, 20], [21, 22, 23, 24], [25, 26, 27, 28], [29, 30, 31, 32]],[[33, 34, 35, 36], [37, 38, 39, 40], [41, 42, 43, 44], [45, 46, 47, 48]],[[49, 50, 51, 52], [53, 54, 55, 56], [57, 58, 59, 60], [61, 62, 63, 64]]])
-#model.add(model.Pool((2, 2, 2), (2, 2, 2), 'max'))
-'''
-'''
+#model.add(model.Pool((2, 2, 2), (2, 2, 2), 'avg'))
 
 y = model.layers[0].forward(X)
 print(y)
