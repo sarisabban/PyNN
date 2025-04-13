@@ -3,7 +3,7 @@ import math
 import pickle
 import numpy as np
 
-try: import cupy as cp
+try: import cupy as np
 except: pass
 
 class PyNN():
@@ -167,7 +167,8 @@ class PyNN():
 			y = np.where(z >= 0, 1, 0)
 			return(y)
 		def backward(self, dy):
-			return(np.zeros_like(dy))
+			dz = np.zeros_like(dy)
+			return(dz)
 	class Linear():
 		''' The Linear activation function '''
 		def forward(self, z):
@@ -394,105 +395,47 @@ class PyNN():
 			self.input_shape = input_shape
 			self.output_shape = output_shape
 		def forward(self, x):
-			if   self.chip == 'CPU': new_x = np.reshape(x, self.output_shape)
-			elif self.chip == 'GPU': new_x = cp.reshape(x, self.output_shape)
+			new_x = np.reshape(x, self.output_shape)
 			return(new_x)
 		def backward(self, dz):
-			if   self.chip == 'CPU': new_dz = np.reshape(dz, self.input_shape)
-			elif self.chip == 'GPU': new_dz = cp.reshape(dz, self.input_shape)
+			new_dz = np.reshape(dz, self.input_shape)
 			return(new_dz)
 	class Pool():
-		''' A pooling layer '''
-		def __init__(self, pool=(2, 2), stride=(2, 2), dim='2D', alg='max'):
-			self.pool = pool
-			self.stride = stride
-			self.dim = dim
+		''' An n dimensional pooling layer '''
+		def __init__(self, window=(2, 2), stride=(2, 2), alg='max'):
+			if isinstance(window, int): self.window = (window,)
+			else: self.window = window
+			if isinstance(stride, int): self.stride = (stride,)
+			else: self.stride = stride
 			self.alg = alg.lower()
 		def forward(self, x):
 			self.x = x
-			if   self.dim == '1D': return(self.forward1D(x))
-			elif self.dim == '2D': return(self.forward2D(x))
-			elif self.dim == '3D': return(self.forward3D(x))
+			d, w, s = x.shape, self.window, self.stride
+			stds = x.strides
+			output_shape = tuple((d[i]-w[i]) // s[i] + 1 for i in range(len(d)))
+			window_shape = output_shape + self.window
+			window_strides = tuple(stds[i] * s[i] for i in range(len(d))) + stds
+			self.windows = np.lib.stride_tricks.as_strided(
+			x, shape=window_shape, strides=window_strides)
+			n = len(x.shape)
+			axis = tuple(range(n, n + n))
+			if   self.alg == 'max': output = np.max(self.windows,  axis=axis)
+			elif self.alg == 'avg': output = np.mean(self.windows, axis=axis)
+			return(output)
 		def backward(self, dz):
-			if   self.dim == '1D': return(self.backward1D(dz))
-			elif self.dim == '2D': return(self.backward2D(dz))
-			elif self.dim == '3D': return(self.backward3D(dz))
-		def forward1D(self, x):
-			output_length = (x.shape[0] - self.pool) // self.stride + 1
-			self.windows = np.lib.stride_tricks.as_strided(x,
-				shape=(output_length, self.pool),
-				strides=(x.strides[0] * self.stride, x.strides[0]))
-			if   self.alg == 'max': output = np.max(self.windows, axis=1)
-			elif self.alg == 'avg': output = np.mean(self.windows, axis=1)
-			return(output)
-		def backward1D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				window = self.windows[i]
-				if self.alg == 'max':
-					max_pos = np.argmax(window)
-					dx[i * self.stride + max_pos] = dz[i]
-				elif self.alg == 'avg':
-					avg_val = np.mean(window)
-					dx[i*self.stride+np.arange(self.pool)] = dz[i]/self.pool
-			return(dx)
-		def forward2D(self, x):
-			h, w = x.shape
-			ph, pw = self.pool
-			stride_h, stride_w = self.stride
-			out_h = (h - ph) // stride_h + 1
-			out_w = (w - pw) // stride_w + 1
-			self.windows = np.lib.stride_tricks.as_strided(x,
-				shape=(out_h, out_w, ph, pw),
-				strides=(x.strides[0] * stride_h, x.strides[1] * stride_w,
-				x.strides[0], x.strides[1]))
-			if   self.alg == 'max': output = np.max(self.windows, axis=(2, 3))
-			elif self.alg == 'avg': output = np.mean(self.windows, axis=(2, 3))
-			return(output)
-		def backward2D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				for j in range(dz.shape[1]):
-					window = self.windows[i, j]
-					if  self.alg == 'max':
-						max_pos = np.unravel_index(np.argmax(window), \
-						window.shape)
-						dx[i * self.stride[0] + max_pos[0],
-						j * self.stride[1] + max_pos[1]] = dz[i, j]
-					elif self.alg == 'avg':
-						avg_val = np.mean(window)
-						dx[i * self.stride[0] + np.arange(self.pool[0]),
-						j * self.stride[1] + np.arange(self.pool[1])] = \
-						dz[i, j] / self.pool[0] / self.pool[1]
-			return(dx)
-		def forward3D(self, x):
-			c, h, w = x.shape
-			p_h, p_w = self.pool
-			stride_h, stride_w = self.stride
-			out_h = (h - p_h) // stride_h + 1
-			out_w = (w - p_w) // stride_w + 1
-			self.windows = np.lib.stride_tricks.as_strided(x,
-				shape=(c, out_h, out_w, p_h, p_w),
-				strides=(x.strides[0], x.strides[1] * stride_h,
-				x.strides[2] * stride_w, x.strides[1], x.strides[2]))
-			if   self.alg == 'max': output = np.max(self.windows, axis=(3, 4))
-			elif self.alg == 'avg': output = np.mean(self.windows, axis=(3, 4))
-			return(output)
-		def backward3D(self, dz):
-			dx = np.zeros_like(self.x)
-			for i in range(dz.shape[0]):
-				for j in range(dz.shape[1]):
-					window = self.windows[i, j]
-					if self.alg == 'max':
-						max_pos = np.unravel_index(np.argmax(window), \
-						window.shape)
-						dx[i, j * self.stride[0] + max_pos[0],
-						j * self.stride[1] + max_pos[1]] = dz[i, j]
-					elif self.alg == 'avg':
-						avg_val = np.mean(window)
-						dx[i, j * self.stride[0] + np.arange(self.pool[0]),
-							j * self.stride[1] + np.arange(self.pool[1])] = \
-							dz[i, j] / self.pool[0] / self.pool[1]
+			sh, st, wn = dz.shape, self.stride, self.window
+			if self.alg == 'max':
+				dx = np.zeros_like(self.x)
+				idx = np.argmax(self.windows.reshape(dz.shape + (-1,)), axis=-1)
+				coord = np.unravel_index(idx, self.window)
+				mesh = np.meshgrid(*[np.arange(s) for s in sh], indexing='ij')
+				idxs = [mesh[i] * st[i] + coord[i] for i in range(len(st))]
+				np.add.at(dx, tuple(idxs), dz)
+			elif self.alg == 'avg':
+				dx = np.zeros_like(self.x, dtype=np.float64)
+				for idx in np.ndindex(sh):
+					slc = tuple(slice(i*s,i*s+w) for i,s,w in zip(idx,st,wn))
+					dx[slc] += dz[idx] / np.prod(self.window)
 			return(dx)
 	class Dense():
 		''' A dense layer '''
@@ -510,45 +453,25 @@ class PyNN():
 			self.b_c = np.zeros_like(self.b)
 		def forward(self, x):
 			self.x = x
-			if self.chip == 'CPU':
-				self.L1w = self.l1w * np.sum(np.abs(self.w))
-				self.L1b = self.l1b * np.sum(np.abs(self.b))
-				self.L2w = self.l2w * np.sum(self.w**2)
-				self.L2b = self.l2b * np.sum(self.b**2)
-				z = np.dot(self.x, self.w) + self.b
-			elif self.chip == 'GPU':
-				self.L1w = self.l1w * cp.sum(np.abs(self.w))
-				self.L1b = self.l1b * cp.sum(np.abs(self.b))
-				self.L2w = self.l2w * cp.sum(self.w**2)
-				self.L2b = self.l2b * cp.sum(self.b**2)
-				z = cp.dot(self.x, self.w) + self.b
+			self.L1w = self.l1w * np.sum(np.abs(self.w))
+			self.L1b = self.l1b * np.sum(np.abs(self.b))
+			self.L2w = self.l2w * np.sum(self.w**2)
+			self.L2b = self.l2b * np.sum(self.b**2)
+			z = np.dot(self.x, self.w) + self.b
 			self.L1L2 = self.L1w + self.L1b + self.L2w + self.L2b
 			return(z)
 		def backward(self, dz):
-			if self.chip == 'CPU':
-				self.dw = np.dot(self.x.T, dz)
-				self.db = np.sum(dz, axis=0, keepdims=True)
-				self.dx = np.dot(dz, self.w.T)
-				L1_dw = np.ones_like(self.w)
-				L1_dw[self.w < 0] = -1
-				self.dw += self.l1w * L1_dw
-				L1_db = np.ones_like(self.b)
-				L1_db[self.b < 0] = -1
-				self.db += self.l1b * L1_db
-				self.dw += 2 * self.l2w * self.w
-				self.db += 2 * self.l2b * self.b
-			elif self.chip == 'GPU':
-				self.dw = cp.dot(self.x.T, dz)
-				self.db = cp.sum(dz, axis=0, keepdims=True)
-				self.dx = cp.dot(dz, self.w.T)
-				L1_dw = cp.ones_like(self.w)
-				L1_dw[self.w < 0] = -1
-				self.dw += self.l1w * L1_dw
-				L1_db = cp.ones_like(self.b)
-				L1_db[self.b < 0] = -1
-				self.db += self.l1b * L1_db
-				self.dw += 2 * self.l2w * self.w
-				self.db += 2 * self.l2b * self.b
+			self.dw = np.dot(self.x.T, dz)
+			self.db = np.sum(dz, axis=0, keepdims=True)
+			self.dx = np.dot(dz, self.w.T)
+			L1_dw = np.ones_like(self.w)
+			L1_dw[self.w < 0] = -1
+			self.dw += self.l1w * L1_dw
+			L1_db = np.ones_like(self.b)
+			L1_db[self.b < 0] = -1
+			self.db += self.l1b * L1_db
+			self.dw += 2 * self.l2w * self.w
+			self.db += 2 * self.l2b * self.b
 			return(self.dx)
 	#---------- Training ----------#
 	def train(self,
@@ -666,55 +589,6 @@ class PyNN():
 			args['accuracy_tests'] = accuracy_tests
 			args['time'] = Tend - Tstart
 			if verbose == 1 or verbose == 2: self.verbosity('Tests', args)
-
-
-
-
-
-
-
-import scipy
-"""
-[ ] Remove scipy
-[ ] stride
-[ ] ''' Initialise parameters '''
-[ ] general padding function
-[ ] 1D 2D 3D
-[ ] L1L2
-[ ] Move channel (depth) to [-1] rather than [0]
-"""
-
-class Conv():
-	''' A convolution layer '''
-	def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
-		self.input_shape = input_shape
-		self.depth = depth
-		self.input_depth = input_shape[0]
-
-		self.kernel_shape = (depth, input_shape[0], kernel_size, kernel_size)
-		self.output_shape = (depth, input_shape[1] - kernel_size + 1, input_shape[2] - kernel_size + 1)
-
-		self.K = np.random.uniform(low=-0.5, high=0.5, size=self.kernel_shape)
-		self.B = np.random.uniform(low=-0.5, high=0.5, size=self.output_shape)
-
-	def forward(self, x):
-		self.x = x
-		self.y = np.copy(self.B)
-		for d in range(self.depth):
-			for n in range(self.input_depth):
-				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
-		return(self.y)
-
-	def backward(self, DL_DY):
-		self.dK = np.zeros(self.kernel_shape) # self.dw
-		self.dB = np.copy(DL_DY)              # self.db
-		self.dx = np.zeros(self.input_shape)
-		for d in range(self.depth):
-			for n in range(self.input_depth):
-				self.dK[d, n] = scipy.signal.correlate2d(self.x[n], DL_DY[d],'valid')
-				self.dx[n] += scipy.signal.convolve2d(DL_DY[d], self.K[d, n],'full')
-		return(self.dx)
-
 
 
 
