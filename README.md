@@ -8,12 +8,14 @@ PyNN is a simple and lightweight neural network library built using only NumPy (
 
 ## Features
 * **Layers:** Dense
-* **Activation function:** Step, Linear, Sigmoid, ReLU, Leaky ReLU, TanH, Softmax
+* **Activation functions:** Step, Linear, Sigmoid, ReLU, Leaky ReLU, TanH, Softmax
+* **Other functions:** Flatten, n dimentional Padding, n dimentional Pooling with both max and average pooling
 * **Loss functions:** MSE, MAE, BCE, CCE
 * **Accuracy functions:** Regression, binary, categorical
 * **Optimisers:** SGD, adagrad, RMSprop, adam
 * **Regularisation:** L1L2, dropout, batch normalisation
 * **Weight initialisation algorithms:** zeros, ones, random, glorot, he
+
 * **Saving/loading a model**
 * **GPU acceleration**
 
@@ -72,24 +74,24 @@ Feel free to contribute by submitting issues or pull requests. Ensure your code 
 - [X] Pooling 1D, 2D, 3D (code again)
 - [X] Padding
 - [ ] CNNs 1D, 2D, 3D
+- [ ] Make sure everything uses GPU without CPU bottle necks
 - [ ] Activation Function: GELU (Gaussian Error Linear Unit)
 - [ ] Activation Function: SiLU (Swish)
 - [ ] Loss Function: Perceptual Loss (LPIPS)
 - [ ] Optimiser: Lion (EvoLved Sign Momentum)
 - [ ] Regularisation: LayerNorm, RMSNorm
-- [ ] Make sure everything uses GPU without CPU bottle necks
 - [ ] RNN, GRU, LSTM, attention layer
 
 Study and build architectures:
-* (done)           Dense
-* (study + build)  CNN VGG16
-* (study + build)  CNN ResNet
-* (just build)     GAN
-* (just build)     PointNet
-* (just build)     YOLOv8     - object detection
-* (just build)     U-net      - semantic detection
-* (just build)     Mask r cnn - instance segmentation
-* (study + build)  Diffusion
-* (study + build)  Transformer + LLMs + other related architectures (BERT, GPT, ViT)
+- [X]                  Dense
+- [ ] (study + build)  CNN VGG16
+- [ ] (study + build)  CNN ResNet
+- [ ] (just build)     GAN
+- [ ] (just build)     PointNet
+- [ ] (just build)     YOLOv8     - object detection
+- [ ] (just build)     U-net      - semantic detection
+- [ ] (just build)     Mask r cnn - instance segmentation
+- [ ] (study + build)  Diffusion
+- [ ] (study + build)  Transformer + LLMs + other related architectures (BERT, GPT, ViT)
 (study + build) Reinforcement learning PPO clean RL
 (study + build) Reinforcement learning DQN clean RL

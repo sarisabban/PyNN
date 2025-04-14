@@ -630,7 +630,6 @@ import scipy
 [ ] Remove scipy
 [ ] stride
 [ ] ''' Initialise parameters '''
-[ ] general padding function
 [ ] 1D 2D 3D
 [ ] L1L2
 [ ] Move channel (depth) to [-1] rather than [0]
