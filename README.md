@@ -69,8 +69,8 @@ You can run the following banchmark scripts (requires `pip install scikit-learn`
 Feel free to contribute by submitting issues or pull requests. Ensure your code follows best practices and includes tests.
 
 ## TODO:
-- [ ] Pooling 1D, 2D, 3D (code again)
-- [ ] Padding
+- [X] Pooling 1D, 2D, 3D (code again)
+- [X] Padding
 - [ ] CNNs 1D, 2D, 3D
 - [ ] Activation Function: GELU (Gaussian Error Linear Unit)
 - [ ] Activation Function: SiLU (Swish)
