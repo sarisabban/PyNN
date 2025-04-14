@@ -6,6 +6,14 @@ import numpy as np
 try: import cupy as np
 except: pass
 
+import time
+import math
+import pickle
+import numpy as np
+
+try: import cupy as np
+except: pass
+
 class PyNN():
 	''' Lightweight NumPy-based neural network library '''
 	#---------- Utilities ----------#
@@ -160,6 +168,30 @@ class PyNN():
 			b = math.sqrt(6) / (math.sqrt(inputs))
 			w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
 		return(w)
+	def Padding(self, x, kernel=(3,3), stride=(1,1), val='zeros', alg='valid'):
+		''' A padding function '''
+		mode = {'zeros':'constant', 'replicate':'edge', 'reflect':'wrap'}
+		ndim = x.ndim
+		if isinstance(kernel, int): kernel = (kernel,) * ndim
+		if isinstance(stride, int): stride = (stride,) * ndim
+		if alg.lower() == 'valid':
+			width = [(0, 0) for _ in range(ndim)]
+		elif alg.lower() == 'same':
+			width = []
+			for i, k, s in zip(x.shape, kernel, stride):
+				pad_total = max((i - 1) * s + k - i, 0)
+				pad_before = pad_total // 2
+				pad_after = pad_total - pad_before
+				width.append((pad_before, pad_after))
+		elif alg.lower() == 'full':
+			width = []
+			for i, k, s in zip(x.shape, kernel, stride):
+				pad_total = max((i - 1) * s + k - i, 0)+2
+				pad_before = pad_total // 2
+				pad_after = pad_total - pad_before
+				width.append((pad_before, pad_after))
+		y = np.pad(x, width, mode[val])
+		return(y)
 	#---------- Activation Functions ----------#
 	class Step():
 		''' The Step activation function (for binary classification) '''
@@ -593,8 +625,74 @@ class PyNN():
 
 
 
+import scipy
+"""
+[ ] Remove scipy
+[ ] stride
+[ ] ''' Initialise parameters '''
+[ ] general padding function
+[ ] 1D 2D 3D
+[ ] L1L2
+[ ] Move channel (depth) to [-1] rather than [0]
+"""
+
+class Conv():
+	''' A convolution layer '''
+	def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
+		self.input_shape = input_shape
+		self.depth = depth
+		self.input_depth = input_shape[0]
+
+		self.kernel_shape = (depth, input_shape[0], kernel_size, kernel_size)
+		self.output_shape = (depth, input_shape[1] - kernel_size + 1, input_shape[2] - kernel_size + 1)
+
+		self.K = np.random.uniform(low=-0.5, high=0.5, size=self.kernel_shape)
+		self.B = np.random.uniform(low=-0.5, high=0.5, size=self.output_shape)
+
+	def forward(self, x):
+		self.x = x
+		self.y = np.copy(self.B)
+		for d in range(self.depth):
+			for n in range(self.input_depth):
+				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
+		return(self.y)
+
+	def backward(self, DL_DY):
+		self.dK = np.zeros(self.kernel_shape) # self.dw
+		self.dB = np.copy(DL_DY)              # self.db
+		self.dx = np.zeros(self.input_shape)
+		for d in range(self.depth):
+			for n in range(self.input_depth):
+				self.dK[d, n] = scipy.signal.correlate2d(self.x[n], DL_DY[d],'valid')
+				self.dx[n] += scipy.signal.convolve2d(DL_DY[d], self.K[d, n],'full')
+		return(self.dx)
 
 
+
+
+
+
+
+
+
+
+x = np.array([
+    [[1, 2, 3],     # Channel 0
+     [4, 5, 6],
+     [7, 8, 9]],
+
+    [[9, 8, 7],     # Channel 1
+     [6, 5, 4],
+     [3, 2, 1]],
+
+    [[0, 1, 0],     # Channel 2
+     [1, 0, 1],
+     [0, 1, 0]]
+])
+
+C = Conv()
+y = C.forward(x)
+print(y)
 
 
 
