@@ -613,24 +613,3 @@ class PyNN():
 			args['accuracy_tests'] = accuracy_tests
 			args['time'] = Tend - Tstart
 			if verbose == 1 or verbose == 2: self.verbosity('Tests', args)
-
-
-
-
-
-
-
-
-
-model = PyNN()
-#X, kernel, stride = np.array([1, 3, 2, 5, 7, 6, 1, 4, 6, 7, 8]), 3, 2
-#X, kernel, stride = np.array([[1, 2, 3, 4, 1, 1], [5, 6, 7, 8, 1, 1], [9, 10, 11, 12, 1, 1], [13, 14, 15, 16, 1, 1]]), (3,3), (1,1)
-X, kernel, stride = np.array([[[ 1,  2,  3,  4], [ 5,  6,  7,  8], [ 9, 10, 11, 12], [13, 14, 15, 16]],[[17, 18, 19, 20], [21, 22, 23, 24], [25, 26, 27, 28], [29, 30, 31, 32]],[[33, 34, 35, 36], [37, 38, 39, 40], [41, 42, 43, 44], [45, 46, 47, 48]],[[49, 50, 51, 52], [53, 54, 55, 56], [57, 58, 59, 60], [61, 62, 63, 64]]]), (3,3,3), (1,1,1)
-y = model.Padding(X, kernel, stride, 'zeros', 'full')
-ndim = X.ndim
-if isinstance(kernel, int): kernel = (kernel,) * ndim
-if isinstance(stride, int): stride = (stride,) * ndim
-print(X.shape, '->', [((i-k)//s)+1 for i, k, s in zip(X.shape, list(kernel), list(stride))])
-print(y.shape, '->', [((i-k)//s)+1 for i, k, s in zip(y.shape, list(kernel), list(stride))])
-#print(X.shape, '->', ((13-3)//2)+1)
-print(y)
