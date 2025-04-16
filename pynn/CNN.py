@@ -694,23 +694,3 @@ y = C.forward(x)
 print(y)
 
 
-
-x = np.array([
-    [[1, 2, 3],     # Channel 0
-     [4, 5, 6],
-     [7, 8, 9]],
-
-    [[9, 8, 7],     # Channel 1
-     [6, 5, 4],
-     [3, 2, 1]],
-
-    [[0, 1, 0],     # Channel 2
-     [1, 0, 1],
-     [0, 1, 0]]
-])
-
-C = Conv()
-y = C.forward(x)
-print(y)
-
-
