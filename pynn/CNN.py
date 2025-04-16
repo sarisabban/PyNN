@@ -627,12 +627,14 @@ class PyNN():
 
 import scipy
 """
+https://www.youtube.com/watch?v=Lakz2MoHy6o
+[ ] Move channel (depth) to [-1] rather than [0]
 [ ] Remove scipy
-[ ] stride
-[ ] ''' Initialise parameters '''
+[ ] add padding
+[ ] add stride
+[ ] add ParamInit
 [ ] 1D 2D 3D
 [ ] L1L2
-[ ] Move channel (depth) to [-1] rather than [0]
 """
 
 class Conv():
