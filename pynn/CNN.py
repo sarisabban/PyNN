@@ -6,13 +6,7 @@ import numpy as np
 try: import cupy as np
 except: pass
 
-import time
-import math
-import pickle
-import numpy as np
-
-try: import cupy as np
-except: pass
+np.random.seed(42)
 
 class PyNN():
 	''' Lightweight NumPy-based neural network library '''
@@ -143,30 +137,40 @@ class PyNN():
 		''' Load model '''
 		with open(f'{path}.pkl', 'rb') as f:
 			self.layers = pickle.load(f)
-	def ParamInit(self, inputs, outputs, alg, mean, sd, a, b):
+	def ParamInit(self, shape, alg, mean, sd, a, b):
 		''' Parameter initialisation function '''
+		if len(shape) < 2:
+			raise ValueError('Shape must have at least two dimensions')
+		if len(shape) == 2:
+			inputs, outputs = shape
+		else:
+			receptive_field_size = np.prod(shape[2:])
+			inputs = shape[1] * receptive_field_size
+			outputs = shape[0] * receptive_field_size
 		if alg.lower() == 'zeros':
-			w = np.zeros((inputs, outputs))
+			w = np.zeros(shape)
 		elif alg.lower() == 'ones':
-			w = np.ones((inputs, outputs))
+			w = np.ones(shape)
 		elif alg.lower() == 'random normal':
-			w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
+			w = np.random.normal(loc=mean, scale=sd, size=shape)
 		elif alg.lower() == 'random uniform':
-			w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
+			w = np.random.uniform(low=a, high=b, size=shape)
 		elif alg.lower() == 'glorot normal':
-			sd = 1 / (math.sqrt(inputs + outputs))
-			w =  np.random.normal(loc=mean, scale=sd, size=(inputs,outputs))
+			sd = math.sqrt(2 / (inputs + outputs))
+			w =  np.random.normal(loc=mean, scale=sd, size=shape)
 		elif alg.lower() == 'glorot uniform':
 			a = - math.sqrt(6) / (math.sqrt(inputs + outputs))
 			b = math.sqrt(6) / (math.sqrt(inputs + outputs))
-			w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
+			w = np.random.uniform(low=a, high=b, size=shape)
 		elif alg.lower() == 'he normal':
-			sd = 2 / (math.sqrt(inputs + outputs))
-			w = np.random.normal(loc=mean, scale=sd, size=(inputs, outputs))
+			sd = math.sqrt(2 / inputs)
+			w = np.random.normal(loc=mean, scale=sd, size=shape)
 		elif alg.lower() == 'he uniform':
 			a = - math.sqrt(6) / (math.sqrt(inputs))
 			b = math.sqrt(6) / (math.sqrt(inputs))
-			w = np.random.uniform(low=a, high=b, size=(inputs, outputs))
+			w = np.random.uniform(low=a, high=b, size=shape)
+		else:
+			raise ValueError(f'Unknown initialization algorithm: {alg}')
 		return(w)
 	def Padding(self, x, kernel=(3,3), stride=(1,1), val='zeros', alg='valid'):
 		''' A padding function '''
@@ -474,7 +478,7 @@ class PyNN():
 		def __init__(self, inputs=1, outputs=1,
 					alg='glorot uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
 					l1w=0, l1b=0, l2w=0, l2b=0):
-			self.w = PyNN.ParamInit(PyNN, inputs, outputs, alg, mean, sd, a, b)
+			self.w = PyNN.ParamInit(PyNN, (inputs,outputs), alg, mean, sd, a, b)
 			self.l1w, self.l1b, self.l2w, self.l2b = l1w, l1b, l2w, l2b
 			self.b = np.zeros((1, outputs))
 			self.beta = np.zeros((1, outputs))
@@ -639,34 +643,36 @@ https://www.youtube.com/watch?v=Lakz2MoHy6o
 
 class Conv():
 	''' A convolution layer '''
-	def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
-		self.input_shape = input_shape
-		self.depth = depth
-		self.input_depth = input_shape[0]
+	def __init__(self, input_shape=(3, 3, 3),
+				kernel_shape=(2, 2, 3), kernel_number=2,
+				stride_shape=(1, 1),
+				# padding='same'
+				alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
+				#l1w=0, l1b=0, l2w=0, l2b=0
+				):
+		self.I = input_shape
+		self.K = PyNN.ParamInit(PyNN, kernel_shape, alg, mean, sd, a, b)
+		I, K, S, N = input_shape, kernel_shape, stride_shape, kernel_number
+		output = tuple([((d-k)//s)+1 for d, k, s in zip(I, K, S)] + [N])
+		self.B = PyNN.ParamInit(PyNN, output, alg, mean, sd, a, b)
 
-		self.kernel_shape = (depth, input_shape[0], kernel_size, kernel_size)
-		self.output_shape = (depth, input_shape[1] - kernel_size + 1, input_shape[2] - kernel_size + 1)
+#	def forward(self, x):
+#		self.x = x
+#		self.y = np.copy(self.B)
+#		for d in range(self.depth):
+#			for n in range(self.input_depth):
+#				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
+#		return(self.y)
 
-		self.K = np.random.uniform(low=-0.5, high=0.5, size=self.kernel_shape)
-		self.B = np.random.uniform(low=-0.5, high=0.5, size=self.output_shape)
-
-	def forward(self, x):
-		self.x = x
-		self.y = np.copy(self.B)
-		for d in range(self.depth):
-			for n in range(self.input_depth):
-				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
-		return(self.y)
-
-	def backward(self, DL_DY):
-		self.dK = np.zeros(self.kernel_shape) # self.dw
-		self.dB = np.copy(DL_DY)              # self.db
-		self.dx = np.zeros(self.input_shape)
-		for d in range(self.depth):
-			for n in range(self.input_depth):
-				self.dK[d, n] = scipy.signal.correlate2d(self.x[n], DL_DY[d],'valid')
-				self.dx[n] += scipy.signal.convolve2d(DL_DY[d], self.K[d, n],'full')
-		return(self.dx)
+#	def backward(self, DL_DY):
+#		self.dK = np.zeros(self.kernel_shape) # self.dw
+#		self.dB = np.copy(DL_DY)              # self.db
+#		self.dx = np.zeros(self.input_shape)
+#		for d in range(self.depth):
+#			for n in range(self.input_depth):
+#				self.dK[d, n] = scipy.signal.correlate2d(self.x[n], DL_DY[d],'valid')
+#				self.dx[n] += scipy.signal.convolve2d(DL_DY[d], self.K[d, n],'full')
+#		return(self.dx)
 
 
 
@@ -692,7 +698,5 @@ x = np.array([
 ])
 
 C = Conv()
-y = C.forward(x)
-print(y)
-
-
+#y = C.forward(x)
+#print(y)
