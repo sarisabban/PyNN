@@ -50,7 +50,7 @@ def run_regression():
 
 def run_binary_classification():
 	''' Binary classification benchmark '''
-    print('\nRunning Binary Classification Example')
+	print('\nRunning Binary Classification Example')
 	X, Y = spiral_data(samples=100, classes=2)
 	Y = Y.reshape(-1, 1)
 
