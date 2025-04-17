@@ -632,37 +632,58 @@ class PyNN():
 import scipy
 """
 https://www.youtube.com/watch?v=Lakz2MoHy6o
-[ ] Move channel (depth) to [-1] rather than [0]
+[X] Move channel (depth) to [-1] rather than [0]
 [ ] Remove scipy
 [ ] add padding
-[ ] add stride
-[ ] add ParamInit
+[X] add stride
+[X] add ParamInit
 [ ] 1D 2D 3D
 [ ] L1L2
 """
+
+from numpy.lib.stride_tricks import sliding_window_view
 
 class Conv():
 	''' A convolution layer '''
 	def __init__(self, input_shape=(3, 3, 3),
 				kernel_shape=(2, 2, 3), kernel_number=2,
 				stride_shape=(1, 1),
-				# padding='same'
 				alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
+				padding='valid',
 				#l1w=0, l1b=0, l2w=0, l2b=0
 				):
 		self.I = input_shape
+		self.S = stride_shape
+		self.padding = padding
+		kernel_shape = tuple([i for i in kernel_shape] + [kernel_number])
 		self.K = PyNN.ParamInit(PyNN, kernel_shape, alg, mean, sd, a, b)
-		I, K, S, N = input_shape, kernel_shape, stride_shape, kernel_number
-		output = tuple([((d-k)//s)+1 for d, k, s in zip(I, K, S)] + [N])
+		if padding == 'valid':
+			I, K, S, N = input_shape, kernel_shape, stride_shape, kernel_number
+			output = tuple([((d-k)//s)+1 for d, k, s in zip(I, K, S)] + [N])
+		elif padding == 'same':
+			output = input_shape
 		self.B = PyNN.ParamInit(PyNN, output, alg, mean, sd, a, b)
+		#####
+		self.kernel_size = (kernel_shape,) * (len(input_shape) - 1) if isinstance(kernel_shape, int) else kernel_shape
+		self.input_shape = input_shape
+		#####
 
-#	def forward(self, x):
-#		self.x = x
-#		self.y = np.copy(self.B)
-#		for d in range(self.depth):
-#			for n in range(self.input_depth):
-#				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
-#		return(self.y)
+	def forward(self, x):
+		if self.padding == 'same':
+			fS = tuple([s for s in self.S] + [0])
+			x = PyNN.Padding(PyNN, x,
+			kernel=self.K.shape, stride=fS, val='zeros', alg='same')
+		print(x.shape, self.K.shape, self.B.shape)
+
+
+		self.x = x
+		self.y = np.copy(self.B)
+		for d in range(self.K.shape[-1]):
+			for n in range(2): #self.I[-1] #########
+				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
+		print(self.y.shape)
+		return(self.y)
+
 
 #	def backward(self, DL_DY):
 #		self.dK = np.zeros(self.kernel_shape) # self.dw
@@ -676,8 +697,83 @@ class Conv():
 
 
 
+"""
+class Conv():
+	''' A convolution layer '''
+	def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
+		self.input_shape = input_shape
+		self.depth = depth
+		self.input_depth = input_shape[0]
+
+		self.kernel_shape = (depth, input_shape[0], kernel_size, kernel_size)
+		self.output_shape = (depth, input_shape[1] - kernel_size + 1, input_shape[2] - kernel_size + 1)
+
+		self.K = np.random.uniform(low=-0.5, high=0.5, size=self.kernel_shape)
+		self.B = np.random.uniform(low=-0.5, high=0.5, size=self.output_shape)
+
+	def forward(self, x):
+		self.x = x
+		self.y = np.copy(self.B)
+		print(self.x.shape, self.depth, self.input_depth)
+		print(self.K)
+		for d in range(self.depth):
+			for n in range(self.input_depth):
+				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
+		return(self.y)
+
+	def backward(self, DL_DY):
+		self.dK = np.zeros(self.kernel_shape) # self.dw
+		self.dB = np.copy(DL_DY)              # self.db
+		self.dx = np.zeros(self.input_shape)
+		for d in range(self.depth):
+			for n in range(self.input_depth):
+				self.dK[d, n] = scipy.signal.correlate2d(self.x[n], DL_DY[d],'valid')
+				self.dx[n] += scipy.signal.convolve2d(DL_DY[d], self.K[d, n],'full')
+		return(self.dx)
+"""
 
 
+
+
+
+
+
+
+class ConvN:
+    def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
+        C, H, W = input_shape
+        self.input_shape = input_shape
+        self.depth = depth
+        self.k = kernel_size
+        self.K = np.random.randn(depth, C, self.k, self.k) * 0.1
+        self.B = np.zeros((depth, H - self.k + 1, W - self.k + 1))
+
+    def forward(self, x):
+        self.x = x
+        D, C, k = self.depth, self.input_shape[0], self.k
+        out_h, out_w = self.B.shape[1:]
+        y = np.copy(self.B)
+        for d in range(D):
+            for c in range(C):
+                for i in range(out_h):
+                    for j in range(out_w):
+                        y[d, i, j] += np.sum(x[c, i:i+k, j:j+k] * self.K[d, c])
+        self.y = y
+        return y
+
+    def backward(self, dy):
+        D, C, k = self.depth, self.input_shape[0], self.k
+        dx = np.zeros_like(self.x)
+        self.dK = np.zeros_like(self.K)
+        self.dB = dy
+        out_h, out_w = dy.shape[1:]
+        for d in range(D):
+            for c in range(C):
+                for i in range(out_h):
+                    for j in range(out_w):
+                        self.dK[d, c] += self.x[c, i:i+k, j:j+k] * dy[d, i, j]
+                        dx[c, i:i+k, j:j+k] += self.K[d, c] * dy[d, i, j]
+        return dx
 
 
 
@@ -697,6 +793,7 @@ x = np.array([
      [0, 1, 0]]
 ])
 
-C = Conv()
-#y = C.forward(x)
-#print(y)
+C = Conv(padding='valid')
+#C = ConvN()
+y = C.forward(x)
+print(y)
