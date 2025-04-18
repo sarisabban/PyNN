@@ -137,9 +137,9 @@ class PyNN():
 			self.layers = pickle.load(f)
 	def ParamInit(self, shape, alg, mean, sd, a, b):
 		''' Parameter initialisation function '''
-		if len(shape) < 2:
-			raise ValueError('Shape must have at least two dimensions')
-		if len(shape) == 2:
+		if isinstance(shape, int):
+			shape = (shape,)
+		elif len(shape) == 2:
 			inputs, outputs = shape
 		else:
 			receptive_field_size = np.prod(shape[2:])
