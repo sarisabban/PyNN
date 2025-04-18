@@ -167,6 +167,8 @@ class PyNN():
 			a = - math.sqrt(6) / (math.sqrt(inputs))
 			b = math.sqrt(6) / (math.sqrt(inputs))
 			w = np.random.uniform(low=a, high=b, size=shape)
+		elif alg.lower() == 'integers':
+			w = np.random.randint(low=a, high=b, size=shape)
 		else:
 			raise ValueError(f'Unknown initialization algorithm: {alg}')
 		return(w)
