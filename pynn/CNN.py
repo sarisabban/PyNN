@@ -139,9 +139,9 @@ class PyNN():
 			self.layers = pickle.load(f)
 	def ParamInit(self, shape, alg, mean, sd, a, b):
 		''' Parameter initialisation function '''
-		if len(shape) < 2:
-			raise ValueError('Shape must have at least two dimensions')
-		if len(shape) == 2:
+		if isinstance(shape, int):
+			shape = (shape,)
+		elif len(shape) == 2:
 			inputs, outputs = shape
 		else:
 			receptive_field_size = np.prod(shape[2:])
@@ -169,6 +169,8 @@ class PyNN():
 			a = - math.sqrt(6) / (math.sqrt(inputs))
 			b = math.sqrt(6) / (math.sqrt(inputs))
 			w = np.random.uniform(low=a, high=b, size=shape)
+		elif alg.lower() == 'integers':
+			w = np.random.randint(low=a, high=b, size=shape)
 		else:
 			raise ValueError(f'Unknown initialization algorithm: {alg}')
 		return(w)
@@ -629,60 +631,130 @@ class PyNN():
 
 
 
-import scipy
 """
 https://www.youtube.com/watch?v=Lakz2MoHy6o
 [X] Move channel (depth) to [-1] rather than [0]
-[ ] Remove scipy
-[ ] add padding
+[X] Remove scipy
+[X] add padding
 [X] add stride
 [X] add ParamInit
 [ ] 1D 2D 3D
 [ ] L1L2
 """
 
-from numpy.lib.stride_tricks import sliding_window_view
-
 class Conv():
 	''' A convolution layer '''
-	def __init__(self, input_shape=(3, 3, 3),
-				kernel_shape=(2, 2, 3), kernel_number=2,
+	def __init__(self, input_shape=(3, 3),
+				kernel_shape=(2, 2), kernel_number=1,
 				stride_shape=(1, 1),
 				alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
 				padding='valid',
 				#l1w=0, l1b=0, l2w=0, l2b=0
 				):
-		self.I = input_shape
-		self.S = stride_shape
-		self.padding = padding
-		kernel_shape = tuple([i for i in kernel_shape] + [kernel_number])
-		self.K = PyNN.ParamInit(PyNN, kernel_shape, alg, mean, sd, a, b)
-		if padding == 'valid':
-			I, K, S, N = input_shape, kernel_shape, stride_shape, kernel_number
-			output = tuple([((d-k)//s)+1 for d, k, s in zip(I, K, S)] + [N])
-		elif padding == 'same':
-			output = input_shape
-		self.B = PyNN.ParamInit(PyNN, output, alg, mean, sd, a, b)
-		#####
-		self.kernel_size = (kernel_shape,) * (len(input_shape) - 1) if isinstance(kernel_shape, int) else kernel_shape
-		self.input_shape = input_shape
-		#####
+		# Shapes
+		self.Is = input_shape
+		self.Ks = kernel_shape
+		self.Kn = kernel_number
+		self.Ss = stride_shape
+		self.Bs = ((self.Is-self.Ks)//self.Ss) + 1
+		# Errors
+#		assert 
 
+		# [ ] implement kernel number
+		# [ ] Implement padding
+
+
+#		self.padding = padding
+#		self.K = PyNN.ParamInit(PyNN, kernel_shape, alg, mean, sd, a, b)
+#		if padding == 'valid':
+#			I, K, S, N = input_shape, kernel_shape, stride_shape, kernel_number
+#			output = tuple([((d-k)//s)+1 for d, k, s in zip(I, K, S)] + [N])
+#		elif padding == 'same':
+#			output = input_shape
+
+		
+		# Generate params
+		if self.Kn > 1:
+			self.Ks = (self.Ks, self.Kn)
+			self.Bs = (self.Bs, self.Kn)
+		self.K = PyNN.ParamInit(PyNN, self.Ks, alg, mean, sd, a, b).T
+		self.B = PyNN.ParamInit(PyNN, self.Bs, alg, mean, sd, a, b).T
 	def forward(self, x):
-		if self.padding == 'same':
-			fS = tuple([s for s in self.S] + [0])
-			x = PyNN.Padding(PyNN, x,
-			kernel=self.K.shape, stride=fS, val='zeros', alg='same')
-		print(x.shape, self.K.shape, self.B.shape)
-
-
 		self.x = x
-		self.y = np.copy(self.B)
-		for d in range(self.K.shape[-1]):
-			for n in range(2): #self.I[-1] #########
-				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
-		print(self.y.shape)
-		return(self.y)
+		print(self.x.shape, self.Is, self.Ks, self.Kn, self.Bs, self.Ss)
+		print(self.x)
+		print(self.K)
+		print(self.B)
+#		if self.padding == 'same':
+#			fS = tuple([s for s in self.S] + [0])
+#			x = PyNN.Padding(PyNN, x,
+#			kernel=self.K.shape, stride=fS, val='zeros', alg='same')
+#		print('X =',x.shape,'K =',self.K.shape,'B =',self.B.shape, 'S =',self.S)
+
+
+		# Cross-correlation
+		if isinstance(self.Ks, int):
+			print('==== INT')
+			windows = np.lib.stride_tricks.sliding_window_view(self.x, window_shape=self.Ks)
+			windows = windows[::self.Ss]
+			self.y = np.dot(windows, self.K) + self.B
+		if isinstance(self.Ks, tuple):
+			print('==== TUPLE')
+			for i in range(self.Kn):
+				windows = np.lib.stride_tricks.sliding_window_view(self.x, window_shape=self.Ks[0])
+				windows = windows[::self.Ss]
+				y = np.dot(windows, self.K[i]) + self.B[i]
+				print(y) ###### check by hand
+
+		#self.y = np.tensordot(windows, self.K, axes=([1], [0])) + self.B
+
+#		H, W, C = x.shape
+#		KH, KW, _, D = self.K.shape
+#		out_H = H - KH + 1
+#		out_W = W - KW + 1
+#		self.y = np.copy(self.B)
+#		for d in range(D):
+#			for c in range(C):
+#				for i in range(KH):
+#					for j in range(KW):
+#						self.y[i, j, d] += np.sum(x[i:i+out_H, j:j+out_W, c] * self.K[i, j, c, d])
+#
+#
+#
+#		return(self.y)
+
+
+x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+C = Conv(input_shape=9, kernel_shape=3, kernel_number=2, stride_shape=1, padding='valid', alg='integers', a=0, b=9)
+#x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9],])
+#C = Conv(padding='valid', alg='integers', a=0, b=9 )
+#x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]])
+#C = Conv(input_shape=(3,3,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1, 1), padding='valid', alg='integers', a=0, b=9)
+y = C.forward(x)
+#print(y, y.shape)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #	def backward(self, DL_DY):
@@ -738,7 +810,6 @@ class Conv():
 
 
 
-
 class ConvN:
     def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
         C, H, W = input_shape
@@ -777,23 +848,78 @@ class ConvN:
 
 
 
+#-------------
+
+class Conv():
+	''' A 1D convolution layer supporting 1D and 2D kernels '''
+	def __init__(self, input_shape,
+				kernel_shape, kernel_number=1,
+				stride_shape=1,
+				alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
+				padding='valid'):
+		
+		# Ensure input shape is 1D
+		if isinstance(input_shape, int):
+			input_shape = (input_shape,)
+		if isinstance(kernel_shape, int):
+			kernel_shape = (kernel_shape,)
+		if isinstance(stride_shape, int):
+			stride_shape = (stride_shape,)
+
+		self.Is = input_shape       # Input shape (length,)
+		self.Ks = kernel_shape      # Kernel shape (k,) or (k, c)
+		self.Kn = kernel_number     # Number of kernels
+		self.Ss = stride_shape      # Stride
+		self.padding = padding
+
+		# Output shape
+		self.Bs = ((np.array(self.Is) - np.array(self.Ks)) // np.array(self.Ss)) + 1
+
+		# Kernel shape: support 1D and 2D (k,) or (k, c)
+		kernel_param_shape = self.Ks + (self.Kn,) if len(self.Ks) == 1 else (self.Ks[0], self.Ks[1], self.Kn)
+		self.K = PyNN.ParamInit(PyNN, kernel_param_shape, alg, mean, sd, a, b)
+
+		# Bias for each output channel
+		self.B = PyNN.ParamInit(PyNN, (self.Bs[0], self.Kn), alg, mean, sd, a, b)
+
+	def forward(self, x):
+		print(x.shape, self.K.shape, self.B.shape)
+
+		self.x = np.asarray(x)
+		if self.padding == 'same':
+			pad_total = self.Ks[0] - 1
+			pad_left = pad_total // 2
+			pad_right = pad_total - pad_left
+			self.x = np.pad(self.x, (pad_left, pad_right), mode='constant')
+
+		# Create windows
+		windows = np.lib.stride_tricks.sliding_window_view(self.x, window_shape=self.Ks[0])
+		windows = windows[::self.Ss[0]]
+
+		# If kernel is 1D: (k, Kn), do dot over k
+		if self.K.ndim == 2:
+			self.y = np.tensordot(windows, self.K, axes=([1], [0])) + self.B
+		# If kernel is 2D: (k, c, Kn), expect windows to have shape (n, k, c)
+		elif self.K.ndim == 3:
+			windows = windows[..., np.newaxis]  # (n, k, 1)
+			self.y = np.tensordot(windows, self.K, axes=([1,2], [0,1])) + self.B
+		else:
+			raise ValueError("Unsupported kernel shape")
+
+		return self.y
 
 
-x = np.array([
-    [[1, 2, 3],     # Channel 0
-     [4, 5, 6],
-     [7, 8, 9]],
 
-    [[9, 8, 7],     # Channel 1
-     [6, 5, 4],
-     [3, 2, 1]],
 
-    [[0, 1, 0],     # Channel 2
-     [1, 0, 1],
-     [0, 1, 0]]
-])
+#x = np.arange(10)
 
-C = Conv(padding='valid')
-#C = ConvN()
-y = C.forward(x)
-print(y)
+# 1D kernel
+#conv1d = Conv(input_shape=10, kernel_shape=3, kernel_number=2)
+#y1 = conv1d.forward(x)
+
+
+# 2D kernel (e.g., multichannel kernel on 1D input reshaped)
+#x2 = np.arange(30).reshape(10, 3)
+#conv2d = Conv(input_shape=(10,), kernel_shape=(3, 3), kernel_number=2)
+#y2 = conv2d.forward(x2)
+
