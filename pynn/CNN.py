@@ -643,6 +643,7 @@ https://www.youtube.com/watch?v=Lakz2MoHy6o
 [ ] 3D
 [ ] L1L2
 [ ] Adam optimiser weights
+[ ] Add self.CNN to line 573 in def.train() and def.show()
 """
 
 class Conv():
@@ -684,211 +685,20 @@ class Conv():
 			self.y = np.dot(windows, self.K) + self.B
 		return(self.y)
 	def backward(self, dz):
-		print('backward')
-		self.dK = 0
-		self.dB = 0
-		self.dx = 0
+		self.dK = np.zeros(self.Ks) # self.dw
+		self.dB = np.copy(dz)       # self.db
+		self.dx = np.zeros(self.x.shape)
+		print(self.dK)
+		print(self.dB)
+		return(self.dx)
 
-x  = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
-dz = np.array([1, 3, 2, 5, 8, 7, 3])
-C = Conv(
-input_shape=9, kernel_shape=3, kernel_number=2, stride_shape=1,
-padding='valid', alg='integers', a=0, b=9)
+x, dz = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]), np.array([1, 3, 2, 5, 8, 7, 3])
+C = Conv(input_shape=9, kernel_shape=3, kernel_number=2, stride_shape=1, padding='valid', alg='integers', a=0, b=9)
 #x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9],])
 #C = Conv(padding='valid', alg='integers', a=0, b=9 )
 #x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]])
 #C = Conv(input_shape=(3,3,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1, 1), padding='valid', alg='integers', a=0, b=9)
 y = C.forward(x)
-print(y, y.shape)
 dx = C.backward(dz)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#	def backward(self, DL_DY):
-#		self.dK = np.zeros(self.kernel_shape) # self.dw
-#		self.dB = np.copy(DL_DY)              # self.db
-#		self.dx = np.zeros(self.input_shape)
-#		for d in range(self.depth):
-#			for n in range(self.input_depth):
-#				self.dK[d, n] = scipy.signal.correlate2d(self.x[n], DL_DY[d],'valid')
-#				self.dx[n] += scipy.signal.convolve2d(DL_DY[d], self.K[d, n],'full')
-#		return(self.dx)
-
-
-
-"""
-class Conv():
-	''' A convolution layer '''
-	def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
-		self.input_shape = input_shape
-		self.depth = depth
-		self.input_depth = input_shape[0]
-
-		self.kernel_shape = (depth, input_shape[0], kernel_size, kernel_size)
-		self.output_shape = (depth, input_shape[1] - kernel_size + 1, input_shape[2] - kernel_size + 1)
-
-		self.K = np.random.uniform(low=-0.5, high=0.5, size=self.kernel_shape)
-		self.B = np.random.uniform(low=-0.5, high=0.5, size=self.output_shape)
-
-	def forward(self, x):
-		self.x = x
-		self.y = np.copy(self.B)
-		print(self.x.shape, self.depth, self.input_depth)
-		print(self.K)
-		for d in range(self.depth):
-			for n in range(self.input_depth):
-				self.y[d] += scipy.signal.correlate2d(self.x[n], self.K[d, n], 'valid')
-		return(self.y)
-
-	def backward(self, DL_DY):
-		self.dK = np.zeros(self.kernel_shape) # self.dw
-		self.dB = np.copy(DL_DY)              # self.db
-		self.dx = np.zeros(self.input_shape)
-		for d in range(self.depth):
-			for n in range(self.input_depth):
-				self.dK[d, n] = scipy.signal.correlate2d(self.x[n], DL_DY[d],'valid')
-				self.dx[n] += scipy.signal.convolve2d(DL_DY[d], self.K[d, n],'full')
-		return(self.dx)
-"""
-
-
-
-
-
-
-
-class ConvN:
-    def __init__(self, input_shape=(3, 3, 3), kernel_size=2, depth=2):
-        C, H, W = input_shape
-        self.input_shape = input_shape
-        self.depth = depth
-        self.k = kernel_size
-        self.K = np.random.randn(depth, C, self.k, self.k) * 0.1
-        self.B = np.zeros((depth, H - self.k + 1, W - self.k + 1))
-
-    def forward(self, x):
-        self.x = x
-        D, C, k = self.depth, self.input_shape[0], self.k
-        out_h, out_w = self.B.shape[1:]
-        y = np.copy(self.B)
-        for d in range(D):
-            for c in range(C):
-                for i in range(out_h):
-                    for j in range(out_w):
-                        y[d, i, j] += np.sum(x[c, i:i+k, j:j+k] * self.K[d, c])
-        self.y = y
-        return y
-
-    def backward(self, dy):
-        D, C, k = self.depth, self.input_shape[0], self.k
-        dx = np.zeros_like(self.x)
-        self.dK = np.zeros_like(self.K)
-        self.dB = dy
-        out_h, out_w = dy.shape[1:]
-        for d in range(D):
-            for c in range(C):
-                for i in range(out_h):
-                    for j in range(out_w):
-                        self.dK[d, c] += self.x[c, i:i+k, j:j+k] * dy[d, i, j]
-                        dx[c, i:i+k, j:j+k] += self.K[d, c] * dy[d, i, j]
-        return dx
-
-
-
-#-------------
-
-class Conv():
-	''' A 1D convolution layer supporting 1D and 2D kernels '''
-	def __init__(self, input_shape,
-				kernel_shape, kernel_number=1,
-				stride_shape=1,
-				alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
-				padding='valid'):
-		
-		# Ensure input shape is 1D
-		if isinstance(input_shape, int):
-			input_shape = (input_shape,)
-		if isinstance(kernel_shape, int):
-			kernel_shape = (kernel_shape,)
-		if isinstance(stride_shape, int):
-			stride_shape = (stride_shape,)
-
-		self.Is = input_shape       # Input shape (length,)
-		self.Ks = kernel_shape      # Kernel shape (k,) or (k, c)
-		self.Kn = kernel_number     # Number of kernels
-		self.Ss = stride_shape      # Stride
-		self.padding = padding
-
-		# Output shape
-		self.Bs = ((np.array(self.Is) - np.array(self.Ks)) // np.array(self.Ss)) + 1
-
-		# Kernel shape: support 1D and 2D (k,) or (k, c)
-		kernel_param_shape = self.Ks + (self.Kn,) if len(self.Ks) == 1 else (self.Ks[0], self.Ks[1], self.Kn)
-		self.K = PyNN.ParamInit(PyNN, kernel_param_shape, alg, mean, sd, a, b)
-
-		# Bias for each output channel
-		self.B = PyNN.ParamInit(PyNN, (self.Bs[0], self.Kn), alg, mean, sd, a, b)
-
-	def forward(self, x):
-		print(x.shape, self.K.shape, self.B.shape)
-
-		self.x = np.asarray(x)
-		if self.padding == 'same':
-			pad_total = self.Ks[0] - 1
-			pad_left = pad_total // 2
-			pad_right = pad_total - pad_left
-			self.x = np.pad(self.x, (pad_left, pad_right), mode='constant')
-
-		# Create windows
-		windows = np.lib.stride_tricks.sliding_window_view(self.x, window_shape=self.Ks[0])
-		windows = windows[::self.Ss[0]]
-
-		# If kernel is 1D: (k, Kn), do dot over k
-		if self.K.ndim == 2:
-			self.y = np.tensordot(windows, self.K, axes=([1], [0])) + self.B
-		# If kernel is 2D: (k, c, Kn), expect windows to have shape (n, k, c)
-		elif self.K.ndim == 3:
-			windows = windows[..., np.newaxis]  # (n, k, 1)
-			self.y = np.tensordot(windows, self.K, axes=([1,2], [0,1])) + self.B
-		else:
-			raise ValueError("Unsupported kernel shape")
-
-		return self.y
-
-
-
-
-#x = np.arange(10)
-
-# 1D kernel
-#conv1d = Conv(input_shape=10, kernel_shape=3, kernel_number=2)
-#y1 = conv1d.forward(x)
-
-
-# 2D kernel (e.g., multichannel kernel on 1D input reshaped)
-#x2 = np.arange(30).reshape(10, 3)
-#conv2d = Conv(input_shape=(10,), kernel_shape=(3, 3), kernel_number=2)
-#y2 = conv2d.forward(x2)
-
+print(y, y.shape)
+print(dx)
