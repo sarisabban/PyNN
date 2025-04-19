@@ -638,7 +638,9 @@ https://www.youtube.com/watch?v=Lakz2MoHy6o
 [X] add padding
 [X] add stride
 [X] add ParamInit
-[ ] 1D 2D 3D
+[X] 1D
+[ ] 2D
+[ ] 3D
 [ ] L1L2
 """
 
@@ -651,87 +653,49 @@ class Conv():
 				padding='valid',
 				#l1w=0, l1b=0, l2w=0, l2b=0
 				):
-		# Shapes
+		self.padding = padding
 		self.Is = input_shape
 		self.Ks = kernel_shape
 		self.Kn = kernel_number
 		self.Ss = stride_shape
-		self.Bs = ((self.Is-self.Ks)//self.Ss) + 1
-		# Errors
-#		assert 
-
-		# [ ] implement kernel number
-		# [ ] Implement padding
-
-
-#		self.padding = padding
-#		self.K = PyNN.ParamInit(PyNN, kernel_shape, alg, mean, sd, a, b)
-#		if padding == 'valid':
-#			I, K, S, N = input_shape, kernel_shape, stride_shape, kernel_number
-#			output = tuple([((d-k)//s)+1 for d, k, s in zip(I, K, S)] + [N])
-#		elif padding == 'same':
-#			output = input_shape
-
-		
-		# Generate params
+		if padding == 'valid':
+			self.Bs = ((self.Is-self.Ks)//self.Ss) + 1
+		elif padding == 'same':
+			self.Bs = input_shape
 		if self.Kn > 1:
 			self.Ks = (self.Ks, self.Kn)
 			self.Bs = (self.Bs, self.Kn)
-		self.K = PyNN.ParamInit(PyNN, self.Ks, alg, mean, sd, a, b).T
-		self.B = PyNN.ParamInit(PyNN, self.Bs, alg, mean, sd, a, b).T
+		self.K = PyNN.ParamInit(PyNN, self.Ks, alg, mean, sd, a, b)
+		self.B = PyNN.ParamInit(PyNN, self.Bs, alg, mean, sd, a, b)
 	def forward(self, x):
 		self.x = x
-		print(self.x.shape, self.Is, self.Ks, self.Kn, self.Bs, self.Ss)
-		print(self.x)
-		print(self.K)
-		print(self.B)
-#		if self.padding == 'same':
-#			fS = tuple([s for s in self.S] + [0])
-#			x = PyNN.Padding(PyNN, x,
-#			kernel=self.K.shape, stride=fS, val='zeros', alg='same')
-#		print('X =',x.shape,'K =',self.K.shape,'B =',self.B.shape, 'S =',self.S)
-
-
-		# Cross-correlation
+		if self.padding == 'same':
+			fS = self.Ss
+			self.x = PyNN.Padding(PyNN, self.x,
+			kernel=self.Ks, stride=fS, val='zeros', alg='same')
 		if isinstance(self.Ks, int):
-			print('==== INT')
-			windows = np.lib.stride_tricks.sliding_window_view(self.x, window_shape=self.Ks)
+			windows = np.lib.stride_tricks.sliding_window_view(self.x, self.Ks)
 			windows = windows[::self.Ss]
 			self.y = np.dot(windows, self.K) + self.B
 		if isinstance(self.Ks, tuple):
-			print('==== TUPLE')
-			for i in range(self.Kn):
-				windows = np.lib.stride_tricks.sliding_window_view(self.x, window_shape=self.Ks[0])
-				windows = windows[::self.Ss]
-				y = np.dot(windows, self.K[i]) + self.B[i]
-				print(y) ###### check by hand
-
-		#self.y = np.tensordot(windows, self.K, axes=([1], [0])) + self.B
-
-#		H, W, C = x.shape
-#		KH, KW, _, D = self.K.shape
-#		out_H = H - KH + 1
-#		out_W = W - KW + 1
-#		self.y = np.copy(self.B)
-#		for d in range(D):
-#			for c in range(C):
-#				for i in range(KH):
-#					for j in range(KW):
-#						self.y[i, j, d] += np.sum(x[i:i+out_H, j:j+out_W, c] * self.K[i, j, c, d])
-#
-#
-#
-#		return(self.y)
-
+			windows = np.lib.stride_tricks.sliding_window_view(self.x, self.Ks[0])
+			windows = windows[::self.Ss]
+			self.y = np.dot(windows, self.K) + self.B
+		return(self.y)
+	def backward(self, dz):
+		print('backward')
 
 x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
-C = Conv(input_shape=9, kernel_shape=3, kernel_number=2, stride_shape=1, padding='valid', alg='integers', a=0, b=9)
+C = Conv(
+input_shape=9, kernel_shape=3, kernel_number=2, stride_shape=1,
+padding='valid', alg='integers', a=0, b=9)
 #x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9],])
 #C = Conv(padding='valid', alg='integers', a=0, b=9 )
 #x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]])
 #C = Conv(input_shape=(3,3,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1, 1), padding='valid', alg='integers', a=0, b=9)
 y = C.forward(x)
-#print(y, y.shape)
+print(y, y.shape)
+dx = C.backward(np.array([1, 3, 2, 5, 8, 7, 3]))
 
 
 
