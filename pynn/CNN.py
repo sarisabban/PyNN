@@ -638,10 +638,11 @@ https://www.youtube.com/watch?v=Lakz2MoHy6o
 [X] add padding
 [X] add stride
 [X] add ParamInit
-[X] 1D
+[ ] 1D
 [ ] 2D
 [ ] 3D
 [ ] L1L2
+[ ] Adam optimiser weights
 """
 
 class Conv():
@@ -684,8 +685,12 @@ class Conv():
 		return(self.y)
 	def backward(self, dz):
 		print('backward')
+		self.dK = 0
+		self.dB = 0
+		self.dx = 0
 
-x = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+x  = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+dz = np.array([1, 3, 2, 5, 8, 7, 3])
 C = Conv(
 input_shape=9, kernel_shape=3, kernel_number=2, stride_shape=1,
 padding='valid', alg='integers', a=0, b=9)
@@ -695,7 +700,7 @@ padding='valid', alg='integers', a=0, b=9)
 #C = Conv(input_shape=(3,3,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1, 1), padding='valid', alg='integers', a=0, b=9)
 y = C.forward(x)
 print(y, y.shape)
-dx = C.backward(np.array([1, 3, 2, 5, 8, 7, 3]))
+dx = C.backward(dz)
 
 
 
