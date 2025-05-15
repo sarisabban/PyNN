@@ -688,19 +688,13 @@ class Conv():
 			windows = np.lib.stride_tricks.sliding_window_view(self.x, C)
 			windows = windows[::self.Ss]
 			self.y = np.dot(windows, self.K) + self.B
-
-
-
-		print(self.x.shape)
-		print(self.K.shape)
-		print(self.B.shape)
-
-
 		if isinstance(self.Is, tuple):
-			C = self.Ks[:2]
+			C = self.Ks[:-1]
 			windows = np.lib.stride_tricks.sliding_window_view(self.x, C)
-			windows[::self.Ss[0], ::self.Ss[1]]
-			self.y = np.dot(windows, self.K) + self.B
+			windows = windows[::self.Ss[0], ::self.Ss[1]]
+			self.y = np.tensordot(self.K, windows) + self.B
+
+
 		return(self.y)
 
 
@@ -713,9 +707,9 @@ class Conv():
 		print(self.dB)
 		return(self.dx)
 
-x, dz = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]), np.array([1, 3, 2, 5, 8, 7, 3]) ; C = Conv(input_shape=9, kernel_shape=3, kernel_number=2, stride_shape=1, padding='valid', alg='integers', a=0, b=9)
-#x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9],]) ; C = Conv(padding='valid', kernel_number=2, alg='integers', a=0, b=9 )
-#x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]]) ; C = Conv(input_shape=(3,3,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1, 1), padding='valid', alg='integers', a=0, b=9)
+#x, dz = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]), np.array([1, 3, 2, 5, 8, 7, 3]) ; C = Conv(input_shape=9, kernel_shape=3, kernel_number=2, stride_shape=1, padding='valid', alg='integers', a=0, b=9)
+#x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]) ; C = Conv(padding='valid', kernel_number=2, alg='integers', a=0, b=9 )
+x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]]) ; C = Conv(input_shape=(3,3,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1, 1), padding='valid', alg='integers', a=0, b=9)
 y = C.forward(x)
 #dx = C.backward(dz)
 print(y, y.shape)
