@@ -634,8 +634,8 @@ class PyNN():
 """
 https://www.youtube.com/watch?v=Lakz2MoHy6o
 [X] 1D Forward
-[ ] 2D Forward
-[ ] 3D Forward
+[X] 2D Forward
+[ ] 3D Forward    no same padding
 [ ] 1D Backward
 [ ] 2D Backward
 [ ] 3D Backward
@@ -653,6 +653,7 @@ class Conv():
 				padding='valid',
 				#l1w=0, l1b=0, l2w=0, l2b=0
 				):
+		# ASSERTS STATEMENTS TO MAKE SURE THE SETUP IS CORRECT
 		self.padding = padding
 		self.Is = input_shape
 		self.Ks = kernel_shape
@@ -686,19 +687,26 @@ class Conv():
 			windows = np.lib.stride_tricks.sliding_window_view(self.x, C)
 			windows = windows[::self.Ss]
 			self.y = np.dot(windows, self.K) + self.B
+		##### SOLVED FOR 2D CNN ######
+#		if isinstance(self.Is, tuple):
+#			C = self.Ks[:-1]
+#			windows = np.lib.stride_tricks.sliding_window_view(self.x, C)
+#			slices = tuple(slice(None, None, s) for s in self.Ss)
+#			windows = windows[slices]
+#			self.y = np.tensordot(windows, self.K) + self.B
+		##### 3D CNN not fully solved #####
 		if isinstance(self.Is, tuple):
-			C = self.Ks[:2] # kernel_shape
+			C = self.Ks[:-1]
 			windows = np.lib.stride_tricks.sliding_window_view(self.x, C)
 			slices = tuple(slice(None, None, s) for s in self.Ss)
 			windows = windows[slices]
-			self.y = np.tensordot(windows, self.K) + self.B
-
-
-
-			print(windows.shape)
-			print(self.x.shape)
-			print(self.K.shape)
-			print(self.B.shape)
+			windows = np.squeeze(windows, axis=2)
+			self.y = np.tensordot(windows, self.K, axes=([2, 3, 4], [0, 1, 2]))
+			if self.B.ndim == 4:
+				B_reshaped = np.squeeze(self.B, axis=2)
+			else:
+				B_reshaped = self.B
+			self.y += B_reshaped
 
 
 
@@ -716,10 +724,11 @@ class Conv():
 
 
 #x, dz = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]), np.array([1, 3, 2, 5, 8, 7, 3]) ; C = Conv(input_shape=9, kernel_shape=3, kernel_number=1, stride_shape=1, padding='valid', alg='integers', a=0, b=9)
-x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]) ; C = Conv(input_shape=(3,3), kernel_shape=(2,2), kernel_number=3, stride_shape=(1,1), padding='valid', alg='integers', a=0, b=9)
-#x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]])
-#C = Conv(input_shape=(3,3,3), kernel_shape=(2,2,3), kernel_number=3, stride_shape=(1,1,1), padding='valid', alg='integers', a=0, b=9)
+#x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]) ; C = Conv(input_shape=(3,3), kernel_shape=(2,2), kernel_number=2, stride_shape=(1,1), padding='valid', alg='integers', a=0, b=9)
+x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]])
+C = Conv(input_shape=(2,2,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1,1,1), padding='valid', alg='integers', a=0, b=9)
 y = C.forward(x)
 #dx = C.backward(dz)
-#print(y, y.shape)
+print(y, y.shape)
 #print(dx)
+
