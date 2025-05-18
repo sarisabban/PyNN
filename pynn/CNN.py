@@ -751,7 +751,7 @@ class Conv():
 #x, dz = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]), np.array([1, 3, 2, 5, 8, 7, 3]) ; C = Conv(input_shape=9, kernel_shape=3, kernel_number=1, stride_shape=1, padding='valid', alg='integers', a=0, b=9)
 #x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]) ; C = Conv(input_shape=(3,3), kernel_shape=(2,2), kernel_number=2, stride_shape=(1,1), padding='valid', alg='integers', a=0, b=9)
 x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]])
-C = Conv(input_shape=(2,2,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1,1,1), padding='valid', alg='integers', a=0, b=9)
+C = Conv(input_shape=(2,2,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1,1,1), padding='same', alg='integers', a=0, b=9)
 y = C.forward(x)
 #dx = C.backward(dz)
 print(y, y.shape)
@@ -760,7 +760,7 @@ print(y, y.shape)
 # --- CNN Layer Test Cases ---
 print("\n--- 2D Conv Test ---")
 x2d = np.arange(81).reshape(9,9)
-C2d = Conv(input_shape=(9,9), kernel_shape=(2,2), kernel_number=9, stride_shape=(2,2), padding='valid', alg='integers', a=0, b=5)
+C2d = Conv(input_shape=(9,9), kernel_shape=(2,2), kernel_number=9, stride_shape=(2,2), padding='same', alg='integers', a=0, b=5)
 y2d = C2d.forward(x2d)
 print("2D output:\n", y2d, y2d.shape)
 
