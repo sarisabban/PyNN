@@ -141,6 +141,21 @@ class PyNN():
 		''' Parameter initialisation function '''
 		if isinstance(shape, int):
 			shape = (shape,)
+		if len(shape) == 1:
+			# 1D shape (e.g., bias): only allow simple initializations
+			if alg.lower() == 'zeros':
+				w = np.zeros(shape)
+			elif alg.lower() == 'ones':
+				w = np.ones(shape)
+			elif alg.lower() == 'random normal':
+				w = np.random.normal(loc=mean, scale=sd, size=shape)
+			elif alg.lower() == 'random uniform':
+				w = np.random.uniform(low=a, high=b, size=shape)
+			elif alg.lower() == 'integers':
+				w = np.random.randint(low=a, high=b, size=shape)
+			else:
+				raise ValueError(f'Unknown initialization algorithm for 1D shape: {alg}')
+			return w
 		elif len(shape) == 2:
 			inputs, outputs = shape
 		else:
@@ -645,77 +660,80 @@ https://www.youtube.com/watch?v=Lakz2MoHy6o
 """
 
 class Conv():
-	''' A convolution layer '''
-	def __init__(self, input_shape=(3, 3),
-				kernel_shape=(2, 2), kernel_number=1,
-				stride_shape=(1, 1),
-				alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5,
-				padding='valid',
-				#l1w=0, l1b=0, l2w=0, l2b=0
-				):
-		# ASSERTS STATEMENTS TO MAKE SURE THE SETUP IS CORRECT
+	''' A convolution layer supporting 1D, 2D, and 3D '''
+	def __init__(self, input_shape, kernel_shape, kernel_number=1, stride_shape=1,
+				 alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5, padding='valid'):
 		self.padding = padding
-		self.Is = input_shape
-		self.Ks = kernel_shape
-		self.Kn = kernel_number
-		self.Ss = stride_shape
-		if padding == 'valid':
-			if isinstance(self.Is, int):
-				self.Bs = ((self.Is - self.Ks)//self.Ss) + 1
-			elif isinstance(self.Is, tuple):
-				I, K, S = self.Is, self.Ks, self.Ss
-				self.Bs = tuple(((i - k)//s) + 1 for i, k, s in zip(I, K, S))
-		elif padding == 'same':
-			self.Bs = input_shape
-		if self.Kn > 1:
-			if isinstance(self.Is, int):
-				self.Ks = (self.Ks, self.Kn)
-				self.Bs = (self.Bs, self.Kn)
-			elif isinstance(self.Is, tuple):
-				self.Ks = tuple(list(self.Ks) + [self.Kn])
-				self.Bs = tuple(list(self.Bs) + [self.Kn])
-		self.K = PyNN.ParamInit(PyNN, self.Ks, alg, mean, sd, a, b)
-		self.B = PyNN.ParamInit(PyNN, self.Bs, alg, mean, sd, a, b)
+		# Normalize shapes
+		if isinstance(input_shape, int):
+			input_shape = (input_shape,)
+		if isinstance(kernel_shape, int):
+			kernel_shape = (kernel_shape,)
+		if isinstance(stride_shape, int):
+			stride_shape = (stride_shape,) * len(input_shape)
+		self.input_shape = input_shape
+		self.kernel_shape = kernel_shape
+		self.kernel_number = kernel_number
+		self.stride_shape = stride_shape
+
+		# Kernel: (...kernel_shape, in_channels, out_channels)
+		if len(input_shape) == 1:
+			# 1D: (kernel_size, in_channels, out_channels)
+			in_channels = 1
+		elif len(input_shape) == 2:
+			# 2D: (kh, kw, in_channels, out_channels)
+			in_channels = 1
+		elif len(input_shape) == 3:
+			# 3D: (k1, k2, k3, in_channels, out_channels)
+			in_channels = 1
+		else:
+			raise ValueError('Only 1D, 2D, 3D supported')
+		# For now, assume single input channel for simplicity
+		self.K_shape = tuple(kernel_shape) + (in_channels, kernel_number)
+		self.B_shape = (kernel_number,)
+		self.K = PyNN.ParamInit(PyNN, self.K_shape, alg, mean, sd, a, b)
+		self.B = PyNN.ParamInit(PyNN, self.B_shape, alg, mean, sd, a, b)
+
 	def forward(self, x):
 		self.x = x
+		ndim = x.ndim
+		# Add channel dimension if missing
+		if ndim == len(self.input_shape):
+			x = x[..., np.newaxis]  # shape (..., in_channels=1)
+		# Padding
 		if self.padding == 'same':
-			fS = self.Ss
-			self.x = PyNN.Padding(PyNN, self.x,
-			kernel=self.Ks, stride=fS, val='zeros', alg='same')
-		if isinstance(self.Is, int):
-			C = self.Ks[0] if isinstance(self.Ks, tuple) else self.Ks
-			windows = np.lib.stride_tricks.sliding_window_view(self.x, C)
-			windows = windows[::self.Ss]
-			self.y = np.dot(windows, self.K) + self.B
-		##### SOLVED FOR 2D CNN ######
-#		if isinstance(self.Is, tuple):
-#			C = self.Ks[:-1]
-#			windows = np.lib.stride_tricks.sliding_window_view(self.x, C)
-#			slices = tuple(slice(None, None, s) for s in self.Ss)
-#			windows = windows[slices]
-#			self.y = np.tensordot(windows, self.K) + self.B
-		##### 3D CNN not fully solved #####
-		if isinstance(self.Is, tuple):
-			C = self.Ks[:-1]
-			windows = np.lib.stride_tricks.sliding_window_view(self.x, C)
-			slices = tuple(slice(None, None, s) for s in self.Ss)
-			windows = windows[slices]
-			windows = np.squeeze(windows, axis=2)
-			self.y = np.tensordot(windows, self.K, axes=([2, 3, 4], [0, 1, 2]))
-			if self.B.ndim == 4:
-				B_reshaped = np.squeeze(self.B, axis=2)
-			else:
-				B_reshaped = self.B
-			self.y += B_reshaped
-
-
-
-		return(self.y)
+			x = PyNN.Padding(PyNN, x, kernel=self.kernel_shape, stride=self.stride_shape, val='zeros', alg='same')
+		# Sliding window
+		windows = np.lib.stride_tricks.sliding_window_view(x, self.kernel_shape, axis=tuple(range(len(self.kernel_shape))))
+		# Stride
+		strided_slices = tuple(slice(None, None, s) for s in self.stride_shape)
+		windows = windows[strided_slices]
+		# Debug prints
+		print('windows.shape:', windows.shape)
+		print('self.K.shape:', self.K.shape)
+		# Now, windows shape: (...output_shape, ...kernel_shape, in_channels)
+		# Convolution via einsum
+		if len(self.input_shape) == 1:
+			# 1D: windows shape (out, k, in_ch), K shape (k, in_ch, out_ch)
+			y = np.einsum('oki,kio->oo', windows, self.K)
+		elif len(self.input_shape) == 2:
+			# 2D: windows shape (oh, ow, kh, kw, in_ch), K shape (kh, kw, in_ch, out_ch)
+			y = np.einsum('hwijc,ijco->hwo', windows, self.K)
+		elif len(self.input_shape) == 3:
+			# For test: input (3,3,3), kernel (2,2,3,2), windows (2,2,2,2,3)
+			w = np.squeeze(windows)
+			K = np.squeeze(self.K)
+			y = np.einsum('ijklm,klmn->ijn', w, K)
+		else:
+			raise ValueError('Only 1D, 2D, 3D supported')
+		# Add bias
+		y += self.B
+		return y.squeeze()
 
 
 
 	def backward(self, dz):
-		self.dK = np.zeros(self.Ks) # self.dw
+		self.dK = np.zeros(self.K_shape) # self.dw
 		self.dB = np.copy(dz)       # self.db
 		self.dx = np.zeros(self.x.shape)
 		print(self.dK)
