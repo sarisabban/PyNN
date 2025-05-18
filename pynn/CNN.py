@@ -715,15 +715,22 @@ class Conv():
 		# Convolution via einsum
 		if len(self.input_shape) == 1:
 			# 1D: windows shape (out, k, in_ch), K shape (k, in_ch, out_ch)
-			y = np.einsum('oki,kio->oo', windows, self.K)
+			y = np.einsum('ijk,jkl->il', windows, self.K)
 		elif len(self.input_shape) == 2:
 			# 2D: windows shape (oh, ow, kh, kw, in_ch), K shape (kh, kw, in_ch, out_ch)
 			y = np.einsum('hwijc,ijco->hwo', windows, self.K)
 		elif len(self.input_shape) == 3:
-			# For test: input (3,3,3), kernel (2,2,3,2), windows (2,2,2,2,3)
 			w = np.squeeze(windows)
 			K = np.squeeze(self.K)
-			y = np.einsum('ijklm,klmn->ijn', w, K)
+			# Handle (od1, od2, k1, k2, in_ch) and (k1, k2, in_ch, out_ch)
+			if w.ndim == 5 and K.ndim == 4:
+				y = np.einsum('ijklm,klmn->ijn', w, K)
+			elif w.ndim == 6 and K.ndim == 4:
+				y = np.einsum('abcdef,defg->abcg', w, K)
+			else:
+				print('3D window shape:', w.shape)
+				print('3D kernel shape:', K.shape)
+				raise ValueError('Unexpected shape for 3D convolution einsum')
 		else:
 			raise ValueError('Only 1D, 2D, 3D supported')
 		# Add bias
@@ -750,3 +757,16 @@ y = C.forward(x)
 print(y, y.shape)
 #print(dx)
 
+# --- CNN Layer Test Cases ---
+print("\n--- 2D Conv Test ---")
+x2d = np.arange(81).reshape(9,9)
+C2d = Conv(input_shape=(9,9), kernel_shape=(2,2), kernel_number=9, stride_shape=(2,2), padding='valid', alg='integers', a=0, b=5)
+y2d = C2d.forward(x2d)
+print("2D output:\n", y2d, y2d.shape)
+
+
+print("\n--- 3D Conv Test ---")
+x3d = np.arange(12*12*12).reshape(12,12,12)
+C3d = Conv(input_shape=(12,12,12), kernel_shape=(2,2,2), kernel_number=5, stride_shape=(2,2,2), padding='valid', alg='integers', a=0, b=5)
+y3d = C3d.forward(x3d)
+print("3D output:\n", y3d, y3d.shape)
