@@ -33,7 +33,8 @@ class PyNN():
 			self.Dense,
 			self.Reshape,
 			self.Flatten,
-			self.Pool)
+			self.Pool,
+			self.Conv)
 	def add(self, layer):
 		''' Add a layer to the network '''
 		if isinstance(layer, self.track):
@@ -532,145 +533,13 @@ class PyNN():
 			self.dw += 2 * self.l2w * self.w
 			self.db += 2 * self.l2b * self.b
 			return(self.dx)
-	#---------- Training ----------#
-	def train(self,
-			X_train=None, Y_train=None,
-			X_valid=None, Y_valid=None,
-			X_tests=None, Y_tests=None,
-			batch_size=None,
-			loss='BCE',
-			accuracy='BINARY',
-			optimiser='SGD', lr=0.1, decay=0.0, beta1=0.9, beta2=0.999, e=1e-7,
-			early_stop=False,
-			epochs=1,
-			verbose=1):
-		''' Train the network '''
-		steps = 0
-		if   loss.lower() == 'mse': loss_fn = self.MSE_Loss()
-		elif loss.lower() == 'mae': loss_fn = self.MAE_Loss()
-		elif loss.lower() == 'bce': loss_fn = self.BCE_Loss()
-		elif loss.lower() == 'cce': loss_fn = self.CCE_Loss()
-		if   accuracy.lower() == 'regression': acc = self.Regression_Accuracy()
-		elif accuracy.lower() == 'binary':     acc = self.Binary_Accuracy()
-		elif accuracy.lower() == 'categorical':acc = self.Categorical_Accuracy()
-		if batch_size is not None: steps = X_train.shape[0] // batch_size
-		else: steps = 1
-		if early_stop: STOP = self.EarlyStopping()
-		args = {'cost_batch':None, 'accuracy_batch':None,
-				'cost_train':None, 'accuracy_train':None,
-				'cost_valid':None, 'accuracy_valid':None,
-				'cost_tests':None, 'accuracy_tests':None,
-				'epoch':None, 'epochs':epochs, 'step':None, 'steps':steps,
-				'time':None}
-		for epoch in range(epochs):
-			args['epoch'] = epoch + 1
-			Estart = time.process_time()
-			# Shuffle training datatset
-			X_train, Y_train = self.shuffle_data(X_train, Y_train)
-			for step in range(steps):
-				args['step'] = step + 1
-				Bstart = time.process_time()
-				# Batch segmentation
-				if batch_size is not None:
-					start_idx = step * batch_size
-					end_idx = min((step + 1) * batch_size, len(X_train))
-					X_batch = X_train[start_idx:end_idx]
-					Y_batch = Y_train[start_idx:end_idx]
-				else:
-					X_batch = X_train
-					Y_batch = Y_train
-				# Forward propagation
-				y_true = Y_batch
-				y_pred = self.forward(X_batch)
-				L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
-				L1L2 = sum(L1L2)
-				cost_batch = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
-				accuracy_batch = acc.calc(y_true, y_pred)
-				# Backpropagation
-				dy = loss_fn.backward(y_true, y_pred)
-				dx = self.backward(dy)
-				# Gradient descent
-				for layer in self.layers:
-					if isinstance(layer, (self.Dense, self.BatchNorm)):
-						if optimiser.lower() == 'sgd':
-							self.SGD(lr, decay, epoch, layer)
-						elif optimiser.lower() == 'adagrad':
-							self.Adagrad(lr, decay, epoch, e, layer)
-						elif optimiser.lower() == 'rmsprop':
-							self.RMSprop(lr, decay, epoch, beta1, e, layer)
-						elif optimiser.lower() == 'adam':
-							self.Adam(lr, decay, epoch, beta1, beta2, e, layer)
-				Bend = time.process_time()
-				args['cost_batch'] = cost_batch
-				args['accuracy_batch'] = accuracy_batch
-				args['time'] = Bend - Bstart
-				if verbose == 2: self.verbosity('Batch', args)
-			# Evaluate training set
-			y_true = Y_train
-			y_pred = self.predict(X_train)
-			L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
-			L1L2 = sum(L1L2)
-			cost_train = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
-			accuracy_train = acc.calc(y_true, y_pred)
-			Eend = time.process_time()
-			args['cost_train'] = cost_train
-			args['accuracy_train'] = accuracy_train
-			args['time'] = Eend - Estart
-			if (verbose == 1 or verbose == 2) and (X_valid is None):
-				self.verbosity('Train', args)
-			# Evaluate validation set
-			if X_valid is not None and Y_valid is not None:
-				Vstart = time.process_time()
-				y_true = Y_valid
-				y_pred = self.predict(X_valid)
-				L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
-				L1L2 = sum(L1L2)
-				cost_valid = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
-				accuracy_valid = acc.calc(y_true, y_pred)
-				Vend = time.process_time()
-				args['cost_valid'] = cost_valid
-				args['accuracy_valid'] = accuracy_valid
-				args['time'] = Vend - Vstart
-				if verbose == 1 or verbose == 2: self.verbosity('Train', args)
-			# Early stop checkpoint
-			if early_stop and STOP.check(epoch, cost_train): break
-		# Evaluate test set
-		if X_tests is not None and Y_tests is not None:
-			Tstart = time.process_time()
-			y_true = Y_tests
-			y_pred = self.predict(X_tests)
-			L1L2 = [l.L1L2 for l in self.layers if isinstance(l,self.Dense)]
-			L1L2 = sum(L1L2)
-			cost_tests = self.cost(loss_fn.forward(y_true, y_pred)) + L1L2
-			accuracy_tests = acc.calc(y_true, y_pred)
-			Tend = time.process_time()
-			args['cost_tests'] = cost_tests
-			args['accuracy_tests'] = accuracy_tests
-			args['time'] = Tend - Tstart
-			if verbose == 1 or verbose == 2: self.verbosity('Tests', args)
-
-
-
-
-"""
-https://www.youtube.com/watch?v=Lakz2MoHy6o
-[X] 1D Forward
-[X] 2D Forward
-[ ] 3D Forward    no same padding
-[ ] 1D Backward
-[ ] 2D Backward
-[ ] 3D Backward
-[ ] L1L2
-[ ] Adam optimiser weights
-[ ] Add self.CNN to line 573 in def.train() and def.show()
-"""
 
 class Conv():
 	''' A convolution layer supporting 1D, 2D, and 3D '''
 	def __init__(self, input_shape, kernel_shape, kernel_number=1, stride_shape=1,
-				 alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5, padding='valid'):
+				 alg='random uniform', mean=0.0, sd=0.1, a=-0.5, b=0.5, padding='valid',
+				 l1w=0, l1b=0, l2w=0, l2b=0):
 		self.padding = padding
-		# Normalize shapes
 		if isinstance(input_shape, int):
 			input_shape = (input_shape,)
 		if isinstance(kernel_shape, int):
@@ -681,77 +550,169 @@ class Conv():
 		self.kernel_shape = kernel_shape
 		self.kernel_number = kernel_number
 		self.stride_shape = stride_shape
-
-		# Kernel: (...kernel_shape, in_channels, out_channels)
-		if len(input_shape) == 1:
-			# 1D: (kernel_size, in_channels, out_channels)
-			in_channels = 1
-		elif len(input_shape) == 2:
-			# 2D: (kh, kw, in_channels, out_channels)
-			in_channels = 1
-		elif len(input_shape) == 3:
-			# 3D: (k1, k2, k3, in_channels, out_channels)
-			in_channels = 1
-		else:
-			raise ValueError('Only 1D, 2D, 3D supported')
-		# For now, assume single input channel for simplicity
+		if   len(input_shape) == 1: in_channels = 1
+		elif len(input_shape) == 2: in_channels = 1
+		elif len(input_shape) == 3: in_channels = 1
+		else: raise ValueError('Only 1D, 2D, 3D supported')
 		self.K_shape = tuple(kernel_shape) + (in_channels, kernel_number)
 		self.B_shape = (kernel_number,)
 		self.K = PyNN.ParamInit(PyNN, self.K_shape, alg, mean, sd, a, b)
 		self.B = PyNN.ParamInit(PyNN, self.B_shape, alg, mean, sd, a, b)
-
+		self.l1w, self.l1b, self.l2w, self.l2b = l1w, l1b, l2w, l2b
+		self.w_m = np.zeros_like(self.K)
+		self.w_c = np.zeros_like(self.K)
+		self.b_m = np.zeros_like(self.B)
+		self.b_c = np.zeros_like(self.B)
+		# Store original shapes for backward pass
+		self.original_K_shape = self.K.shape
+		self.original_B_shape = self.B.shape
 	def forward(self, x):
 		self.x = x
 		ndim = x.ndim
-		# Add channel dimension if missing
 		if ndim == len(self.input_shape):
-			x = x[..., np.newaxis]  # shape (..., in_channels=1)
-		# Padding
+			x = x[..., np.newaxis]
 		if self.padding == 'same':
 			x = PyNN.Padding(PyNN, x, kernel=self.kernel_shape, stride=self.stride_shape, val='zeros', alg='same')
-		# Sliding window
 		windows = np.lib.stride_tricks.sliding_window_view(x, self.kernel_shape, axis=tuple(range(len(self.kernel_shape))))
-		# Stride
 		strided_slices = tuple(slice(None, None, s) for s in self.stride_shape)
 		windows = windows[strided_slices]
-		# Debug prints
-		print('windows.shape:', windows.shape)
-		print('self.K.shape:', self.K.shape)
-		# Now, windows shape: (...output_shape, ...kernel_shape, in_channels)
-		# Convolution via einsum
 		if len(self.input_shape) == 1:
-			# 1D: windows shape (out, k, in_ch), K shape (k, in_ch, out_ch)
-			y = np.einsum('ijk,jkl->il', windows, self.K)
+			self.y = np.einsum('ijk,jkl->il', windows, self.K)
 		elif len(self.input_shape) == 2:
-			# 2D: windows shape (oh, ow, kh, kw, in_ch), K shape (kh, kw, in_ch, out_ch)
-			y = np.einsum('hwijc,ijco->hwo', windows, self.K)
+			self.y = np.einsum('hwijc,ijco->hwo', windows, self.K)
 		elif len(self.input_shape) == 3:
 			w = np.squeeze(windows)
 			K = np.squeeze(self.K)
-			# Handle (od1, od2, k1, k2, in_ch) and (k1, k2, in_ch, out_ch)
-			if w.ndim == 5 and K.ndim == 4:
-				y = np.einsum('ijklm,klmn->ijn', w, K)
+			if   w.ndim == 5 and K.ndim == 4:
+				self.y = np.einsum('ijklm,klmn->ijn', w, K)
 			elif w.ndim == 6 and K.ndim == 4:
-				y = np.einsum('abcdef,defg->abcg', w, K)
-			else:
-				print('3D window shape:', w.shape)
-				print('3D kernel shape:', K.shape)
-				raise ValueError('Unexpected shape for 3D convolution einsum')
-		else:
-			raise ValueError('Only 1D, 2D, 3D supported')
-		# Add bias
-		y += self.B
-		return y.squeeze()
-
-
-
+				self.y = np.einsum('abcdef,defg->abcg', w, K)
+			else: raise ValueError('Unexpected shape for 3D convolution einsum')
+		else: raise ValueError('Only 1D, 2D, 3D supported')
+		self.y += self.B
+		self.y = self.y.squeeze()
+		# Calculate L1L2 regularization
+		self.L1w = self.l1w * np.sum(np.abs(self.K))
+		self.L1b = self.l1b * np.sum(np.abs(self.B))
+		self.L2w = self.l2w * np.sum(self.K**2)
+		self.L2b = self.l2b * np.sum(self.B**2)
+		self.L1L2 = self.L1w + self.L1b + self.L2w + self.L2b
+		return(self.y)
 	def backward(self, dz):
-		self.dK = np.zeros(self.K_shape) # self.dw
-		self.dB = np.copy(dz)       # self.db
-		self.dx = np.zeros(self.x.shape)
-		print(self.dK)
-		print(self.dB)
-		return(self.dx)
+		''' Backward pass for convolution layer '''
+		# Initialize gradients
+		self.dK = np.zeros_like(self.K)
+		self.dB = np.sum(dz, axis=tuple(range(len(self.input_shape))))
+		self.dx = np.zeros_like(self.x)
+
+		# Add channel dimension if needed
+		if dz.ndim == len(self.input_shape):
+			dz = dz[..., np.newaxis]
+
+		# Get padded input if needed
+		x = self.x
+		if self.padding == 'same':
+			x = PyNN.Padding(PyNN, x, kernel=self.kernel_shape, stride=self.stride_shape, val='zeros', alg='same')
+
+		# Create sliding windows for input
+		windows = np.lib.stride_tricks.sliding_window_view(x, self.kernel_shape, axis=tuple(range(len(self.kernel_shape))))
+		strided_slices = tuple(slice(None, None, s) for s in self.stride_shape)
+		windows = windows[strided_slices]
+
+		# Compute gradients based on input dimensions
+		if len(self.input_shape) == 1:
+			# 1D convolution
+			# dK: (k, in_ch, out_ch) -- here in_ch=1
+			self.dK = np.einsum('oi,oj->ij', windows, dz)
+			self.dK = self.dK[:, np.newaxis, :]
+			# dx: (in_size, in_ch)
+			if self.dx.ndim == 1:
+				self.dx = self.dx[:, np.newaxis]
+			for i in range(windows.shape[0]):
+				start_idx = i * self.stride_shape[0]
+				end_idx = start_idx + self.kernel_shape[0]
+				# dz[i]: (out_ch,), self.K: (k, in_ch, out_ch)
+				# We want to sum over out_ch, result: (k, in_ch)
+				self.dx[start_idx:end_idx, :] += np.einsum('l,klm->km', dz[i].ravel(), self.K)
+
+		elif len(self.input_shape) == 2:
+			# 2D convolution
+			# Add in_channel dimension if missing
+			if windows.ndim == 4:
+				windows = windows[..., np.newaxis]
+			# dK: (kh, kw, in_ch, out_ch)
+			self.dK = np.einsum('hwijc,hwo->ijco', windows, dz)
+			# dx: (h, w, in_ch)
+			if self.dx.ndim == 2:
+				self.dx = self.dx[..., np.newaxis]
+			for i in range(windows.shape[0]):
+				for j in range(windows.shape[1]):
+					h_start = i * self.stride_shape[0]
+					h_end = h_start + self.kernel_shape[0]
+					w_start = j * self.stride_shape[1]
+					w_end = w_start + self.kernel_shape[1]
+					# Handle edge cases for padding
+					dx_slice = self.dx[h_start:h_end, w_start:w_end, :]
+					k_h = dx_slice.shape[0]
+					k_w = dx_slice.shape[1]
+					self.dx[h_start:h_end, w_start:w_end, :] += np.einsum('o,ijco->ijc', dz[i, j], self.K[:k_h, :k_w, :, :])
+
+		elif len(self.input_shape) == 3:
+			# 3D convolution
+			w = windows
+			K = self.K
+			# Ensure w and K have shape (out_d1, out_d2, out_d3, k1, k2, k3, in_ch)
+			if w.ndim == 6:
+				w = np.expand_dims(w, -1)  # add in_ch=1 if missing
+			if K.ndim == 4:
+				K = np.expand_dims(K, -2)  # add in_ch=1 if missing
+			# dK: (k1, k2, k3, in_ch, out_ch)
+			self.dK = np.einsum('abcxyzl,abcg->xyzlg', w, dz)
+			# dx: (d1, d2, d3, in_ch)
+			if self.dx.ndim == 3:
+				self.dx = self.dx[..., np.newaxis]
+			for i in range(w.shape[0]):
+				for j in range(w.shape[1]):
+					for k in range(w.shape[2]):
+						d1_start = i * self.stride_shape[0]
+						d1_end = d1_start + self.kernel_shape[0]
+						d2_start = j * self.stride_shape[1]
+						d2_end = d2_start + self.kernel_shape[1]
+						d3_start = k * self.stride_shape[2]
+						d3_end = d3_start + self.kernel_shape[2]
+						self.dx[d1_start:d1_end, d2_start:d2_end, d3_start:d3_end, :] += np.einsum('g,xyzlg->xyzl', dz[i, j, k], K)
+
+		# Add L1L2 regularization gradients
+		L1_dK = np.ones_like(self.K)
+		L1_dK[self.K < 0] = -1
+		self.dK += self.l1w * L1_dK
+		L1_dB = np.ones_like(self.B)
+		L1_dB[self.B < 0] = -1
+		self.dB += self.l1b * L1_dB
+		self.dK += 2 * self.l2w * self.K
+		self.dB += 2 * self.l2b * self.B
+
+		# Ensure gradients have correct shapes
+		self.dK = self.dK.reshape(self.original_K_shape)
+		self.dB = self.dB.reshape(self.original_B_shape)
+
+		# Remove padding from dx if needed
+		if self.padding == 'same':
+			# Calculate padding amounts
+			pad_width = []
+			for i, k, s in zip(self.x.shape, self.kernel_shape, self.stride_shape):
+				pad_total = max((i - 1) * s + k - i, 0)
+				pad_before = pad_total // 2
+				pad_after = pad_total - pad_before
+				pad_width.append((pad_before, pad_after))
+			# Add padding for channel dimension if needed
+			if self.x.ndim > len(pad_width):
+				pad_width.append((0, 0))
+			# Remove padding
+			slices = tuple(slice(p[0], -p[1] if p[1] > 0 else None) for p in pad_width)
+			self.dx = self.dx[slices]
+
+		return self.dx
 
 
 
@@ -761,16 +722,51 @@ print("\n--- 1D Conv Test ---")
 x1d = np.arange(9)
 C1d = Conv(input_shape=9, kernel_shape=3, kernel_number=1, stride_shape=1, padding='valid', alg='integers', a=0, b=5)
 y1d = C1d.forward(x1d)
-print("2D output:\n", y1d, y1d.shape)
+print("1D output shape:", y1d.shape)
+# Test backward pass
+dy1d = np.ones_like(y1d)
+dx1d = C1d.backward(dy1d)
+print("1D gradients:")
+print("dK shape:", C1d.dK.shape)
+print("dB shape:", C1d.dB.shape)
+print("dx shape:", dx1d.shape)
 
 print("\n--- 2D Conv Test ---")
 x2d = np.arange(81).reshape(9,9)
 C2d = Conv(input_shape=(9,9), kernel_shape=(2,2), kernel_number=9, stride_shape=(2,2), padding='valid', alg='integers', a=0, b=5)
 y2d = C2d.forward(x2d)
-print("2D output:\n", y2d, y2d.shape)
+print("2D output shape:", y2d.shape)
+# Test backward pass
+dy2d = np.ones_like(y2d)
+dx2d = C2d.backward(dy2d)
+print("2D gradients:")
+print("dK shape:", C2d.dK.shape)
+print("dB shape:", C2d.dB.shape)
+print("dx shape:", dx2d.shape)
 
 print("\n--- 3D Conv Test ---")
 x3d = np.arange(12*12*12).reshape(12,12,12)
-C3d = Conv(input_shape=(12,12,12), kernel_shape=(2,2,2), kernel_number=5, stride_shape=(2,2,2), padding='full', alg='integers', a=0, b=5)
+C3d = Conv(input_shape=(12,12,12), kernel_shape=(2,2,2), kernel_number=5, stride_shape=(2,2,2), padding='valid', alg='integers', a=0, b=5)
 y3d = C3d.forward(x3d)
-print("3D output:\n", y3d, y3d.shape)
+print("3D output shape:", y3d.shape)
+# Test backward pass
+dy3d = np.ones_like(y3d)
+dx3d = C3d.backward(dy3d)
+print("3D gradients:")
+print("dK shape:", C3d.dK.shape)
+print("dB shape:", C3d.dB.shape)
+print("dx shape:", dx3d.shape)
+
+# Test with 'same' padding
+print("\n--- 2D Conv Test (same padding) ---")
+x2d_same = np.arange(81).reshape(9,9)
+C2d_same = Conv(input_shape=(9,9), kernel_shape=(3,3), kernel_number=9, stride_shape=(1,1), padding='same', alg='integers', a=0, b=5)
+y2d_same = C2d_same.forward(x2d_same)
+print("2D output shape (same padding):", y2d_same.shape)
+# Test backward pass
+dy2d_same = np.ones_like(y2d_same)
+dx2d_same = C2d_same.backward(dy2d_same)
+print("2D gradients (same padding):")
+print("dK shape:", C2d_same.dK.shape)
+print("dB shape:", C2d_same.dB.shape)
+print("dx shape:", dx2d_same.shape)
