@@ -204,6 +204,9 @@ class PyNN():
 				pad_before = pad_total // 2
 				pad_after = pad_total - pad_before
 				width.append((pad_before, pad_after))
+			# Add padding for channel dimension if needed
+			if x.ndim > len(width):
+				width.append((0, 0))
 		elif alg.lower() == 'full':
 			width = []
 			for i, k, s in zip(x.shape, kernel, stride):
@@ -211,6 +214,9 @@ class PyNN():
 				pad_before = pad_total // 2
 				pad_after = pad_total - pad_before
 				width.append((pad_before, pad_after))
+			# Add padding for channel dimension if needed
+			if x.ndim > len(width):
+				width.append((0, 0))
 		y = np.pad(x, width, mode[val])
 		return(y)
 	#---------- Activation Functions ----------#
@@ -748,25 +754,23 @@ class Conv():
 		return(self.dx)
 
 
-#x, dz = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]), np.array([1, 3, 2, 5, 8, 7, 3]) ; C = Conv(input_shape=9, kernel_shape=3, kernel_number=1, stride_shape=1, padding='valid', alg='integers', a=0, b=9)
-#x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]) ; C = Conv(input_shape=(3,3), kernel_shape=(2,2), kernel_number=2, stride_shape=(1,1), padding='valid', alg='integers', a=0, b=9)
-x = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]], [[9, 8, 7], [6, 5, 4], [3, 2, 1]], [[0, 1, 0], [1, 0, 1], [0, 1, 0]]])
-C = Conv(input_shape=(2,2,3), kernel_shape=(2,2,3), kernel_number=2, stride_shape=(1,1,1), padding='same', alg='integers', a=0, b=9)
-y = C.forward(x)
-#dx = C.backward(dz)
-print(y, y.shape)
-#print(dx)
+
 
 # --- CNN Layer Test Cases ---
+print("\n--- 1D Conv Test ---")
+x1d = np.arange(9)
+C1d = Conv(input_shape=9, kernel_shape=3, kernel_number=1, stride_shape=1, padding='valid', alg='integers', a=0, b=5)
+y1d = C1d.forward(x1d)
+print("2D output:\n", y1d, y1d.shape)
+
 print("\n--- 2D Conv Test ---")
 x2d = np.arange(81).reshape(9,9)
-C2d = Conv(input_shape=(9,9), kernel_shape=(2,2), kernel_number=9, stride_shape=(2,2), padding='same', alg='integers', a=0, b=5)
+C2d = Conv(input_shape=(9,9), kernel_shape=(2,2), kernel_number=9, stride_shape=(2,2), padding='valid', alg='integers', a=0, b=5)
 y2d = C2d.forward(x2d)
 print("2D output:\n", y2d, y2d.shape)
 
-
 print("\n--- 3D Conv Test ---")
 x3d = np.arange(12*12*12).reshape(12,12,12)
-C3d = Conv(input_shape=(12,12,12), kernel_shape=(2,2,2), kernel_number=5, stride_shape=(2,2,2), padding='valid', alg='integers', a=0, b=5)
+C3d = Conv(input_shape=(12,12,12), kernel_shape=(2,2,2), kernel_number=5, stride_shape=(2,2,2), padding='full', alg='integers', a=0, b=5)
 y3d = C3d.forward(x3d)
 print("3D output:\n", y3d, y3d.shape)
